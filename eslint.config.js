@@ -6,6 +6,13 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // Standalone Node scripts (ASSETS.md tools/), run directly with `node`, not bundled.
+    files: ["tools/**/*.mjs"],
+    languageOptions: {
+      globals: { console: "readonly", process: "readonly" },
+    },
+  },
+  {
     // Sim purity (docs/ARCHITECTURE.md "Sim rules"): no rendering/DOM deps, no wall-clock, no unseeded RNG.
     files: ["packages/sim/**/*.ts"],
     rules: {

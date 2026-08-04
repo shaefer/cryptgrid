@@ -46,4 +46,11 @@ Palette: stone `#4a4e55–#6b7078`, mortar `#2e3136`, warm torch grime `#5c4a3a`
 
 | File | Origin |
 |---|---|
-| *(populate as files land — CI check later)* | |
+| `assets/textures/wall_stone.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_stone_secretbrick.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_alcove_back.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/floor_stone.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/ceiling_stone.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/door_portcullis.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/door_secret.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/_preview/*` | `generated:tools/gen-textures/generate.mjs` (2×2 tiling check, not shipped in builds) |

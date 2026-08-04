@@ -7,3 +7,6 @@ Thumbs.db
 .vite/
 playwright-report/
 test-results/
+
+# Regenerable QA artifact from tools/gen-textures (pnpm gen:textures) — not shipped.
+assets/textures/_preview/

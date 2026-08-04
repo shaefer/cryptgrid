@@ -1,0 +1,48 @@
+{
+  "formatVersion": 1,
+  "id": "vault01",
+  "name": "The Outer Vault",
+  "width": 16,
+  "height": 16,
+  "cells": [
+    "################",
+    "#...###...######",
+    "#...###...######",
+    "#...###...######",
+    "##.#####.#######",
+    "##.#####D#######",
+    "##.#####.#######",
+    "#..............#",
+    "#####.######.###",
+    "#####.######.###",
+    "#####.######S###",
+    "####...####...##",
+    "####...####...##",
+    "####...####...##",
+    "################",
+    "################"
+  ],
+  "start": { "x": 2, "z": 2, "facing": "S" },
+  "doors": [
+    { "id": "door_hall", "x": 8, "z": 5, "type": "portcullis", "open": false },
+    { "id": "secret_a", "x": 12, "z": 10, "type": "secret", "open": false }
+  ],
+  "wallFeatures": [
+    { "id": "lever_1", "x": 9, "z": 2, "face": "E", "type": "lever",
+      "targets": ["door_hall"], "action": "toggle" },
+    { "id": "sw_hidden1", "x": 10, "z": 7, "face": "N", "type": "switch",
+      "variant": "secretBrick", "targets": ["secret_a"], "action": "toggle" },
+    { "id": "alc_1", "x": 5, "z": 13, "face": "S", "type": "alcove",
+      "items": [ { "id": "itm_torch_1", "type": "torch" } ] },
+    { "id": "txt_1", "x": 3, "z": 7, "face": "N", "type": "inscription",
+      "text": "Kor Ign Dart drives back the dark." }
+  ],
+  "items": [
+    { "id": "itm_sword_1", "type": "shortsword", "x": 3, "z": 1 },
+    { "id": "itm_bread_1", "type": "bread", "x": 6, "z": 7 },
+    { "id": "itm_flask_1", "type": "waterflask", "x": 13, "z": 7 },
+    { "id": "itm_scroll_1", "type": "scroll", "x": 8, "z": 2 }
+  ],
+  "triggers": [],
+  "spawns": []
+}
