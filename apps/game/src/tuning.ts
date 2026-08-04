@@ -22,7 +22,26 @@ export const BUMP_DISTANCE = 0.16;
 export const BUMP_MS = 180;
 
 /** Eye height in a 3-unit-tall corridor. */
-export const CAMERA_HEIGHT = 1.6;
+export const CAMERA_HEIGHT = 1.5;
+
+/**
+ * Constant downward tilt. With a level camera (0deg) at CAMERA_HEIGHT=1.5 and
+ * FOV=75, the floor only enters frame ~1.95 world units ahead — farther than
+ * the 1.5 units to a wall filling the near half of the current tile. Facing a
+ * wall dead-on therefore shows 100% wall, 0% floor: no room to see items on
+ * the floor near that wall.
+ *
+ * A downward tilt pulls that near-floor-visible distance in. At 12deg it's
+ * ~1.28 units, giving a visible sliver between there and the 1.5-unit wall —
+ * "the edge of the floor," not the whole tile — while keeping most of the
+ * frame on the wall (important once secret switches live there in M0.8).
+ * Item quadrants (M0.7) are assumed at +-0.75 from tile center; fully
+ * revealing the near-wall quadrant would need significantly more tilt, which
+ * reads as staring at your feet during normal corridor walking. This is a
+ * first pass — revisit once real item sprites exist to check against
+ * (user-tuned down from an initial 15deg/1.6 pairing during M0.4 playtesting).
+ */
+export const CAMERA_PITCH_DEG = 12;
 
 /** Torch flicker: base intensity plus two out-of-phase sine terms (amplitude, rate in rad/s). */
 export const TORCH_BASE_INTENSITY = 60;

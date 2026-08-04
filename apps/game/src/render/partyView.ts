@@ -5,12 +5,16 @@ import {
   BUMP_DISTANCE,
   BUMP_MS,
   CAMERA_HEIGHT,
+  CAMERA_PITCH_DEG,
   MOVE_TWEEN_MS,
   TURN_TWEEN_MS,
   ease,
 } from "../tuning";
 
 const TWO_PI = Math.PI * 2;
+// Negative X rotation tilts the view down (verified via THREE.Camera.getWorldDirection
+// with rotation.order = 'YXZ' — see the constructor for why that order matters).
+const CAMERA_PITCH_RAD = -(CAMERA_PITCH_DEG * Math.PI) / 180;
 
 // World forward at rotationY = 0 is -Z (Three.js default), which is our "N"
 // (LEVELS.md: "North = -z"). The rest follow by rotating toward each facing.
@@ -65,6 +69,11 @@ export class PartyView {
     private readonly camera: THREE.PerspectiveCamera,
     party: PartyState,
   ) {
+    // Default Euler order 'XYZ' applies pitch before yaw, so a fixed pitch
+    // reads as downward at yaw=0 but flips to upward at yaw=180 (verified via
+    // Three's own getWorldDirection — not a hunch). 'YXZ' applies yaw first,
+    // giving a pitch that's consistent no matter which way the party faces.
+    this.camera.rotation.order = "YXZ";
     this.x = worldX(party.x);
     this.z = worldZ(party.z);
     this.rotationY = FACING_Y_ROTATION[party.facing];
@@ -151,7 +160,7 @@ export class PartyView {
 
   private applyToCamera(offsetX: number, offsetZ: number): void {
     this.camera.position.set(this.x + offsetX, CAMERA_HEIGHT, this.z + offsetZ);
-    this.camera.rotation.set(0, this.rotationY, 0);
+    this.camera.rotation.set(CAMERA_PITCH_RAD, this.rotationY, 0);
   }
 
   /**
