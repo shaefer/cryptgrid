@@ -10,6 +10,7 @@ import {
   type GameState,
   type LevelJSON,
 } from "@cryptgrid/sim";
+import { VitalsHud } from "./hud/vitalsHud";
 import { KeyboardInput } from "./input/keyboard";
 import { PartyView } from "./render/partyView";
 import { buildLevel } from "./scene/buildLevel";
@@ -26,7 +27,8 @@ const MAX_TICKS_PER_FRAME = 5;
 async function main(): Promise<void> {
   const app = document.getElementById("app");
   const hud = document.getElementById("hud");
-  if (!app || !hud) throw new Error("expected #app and #hud in index.html");
+  const vitals = document.getElementById("vitals");
+  if (!app || !hud || !vitals) throw new Error("expected #app, #hud, and #vitals in index.html");
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -58,16 +60,24 @@ async function main(): Promise<void> {
     console.error("vault01.json failed validation:", errors);
   }
 
+  // ?devDecay=50 speeds up Hunger/Thirst decay so it's visibly testable
+  // without waiting ~20 real minutes (ROADMAP.md M0.6 AC).
+  const devDecayParam = Number(new URLSearchParams(window.location.search).get("devDecay"));
+  const devDecayMultiplier = devDecayParam > 0 ? devDecayParam : 1;
+
   const level = parseLevel(levelJson);
-  let state: GameState = createInitialState(level, 1);
+  let state: GameState = createInitialState(level, 1, { devDecayMultiplier });
   buildLevel(scene, level, textures);
 
   const partyView = new PartyView(camera, state.party);
   const input = new KeyboardInput();
   input.attach(window);
+  const vitalsHud = new VitalsHud(vitals);
 
   const updateHud = (): void => {
     hud.textContent = `${level.name} — (${state.party.x},${state.party.z}) facing ${state.party.facing}   ·   WASD move · QE turn`;
+    const bram = state.party.members[0];
+    if (bram) vitalsHud.update(bram);
   };
   updateHud();
 
@@ -105,9 +115,11 @@ async function main(): Promise<void> {
       for (const event of result.events) {
         partyView.handleEvent(event, nowMs);
       }
-      if (result.events.length > 0) updateHud();
     }
     if (ticksThisFrame === MAX_TICKS_PER_FRAME) accumulator = 0; // drop the backlog
+    // Vitals decay every tick regardless of events, so the HUD refreshes
+    // whenever the sim actually advanced, not just on movement.
+    if (ticksThisFrame > 0) updateHud();
 
     partyView.update(nowMs);
 

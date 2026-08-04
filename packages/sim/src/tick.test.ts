@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { LevelJSON } from "./level/types";
-import { parseLevel } from "./level/parse";
-import { createInitialState, type GameState } from "./state";
-import { ACTION_COOLDOWN_TICKS, canAct, tick } from "./tick";
+import type { RavenousnessTier } from "./character/vitals";
 import type { Facing } from "./facing";
+import { parseLevel } from "./level/parse";
+import type { LevelJSON } from "./level/types";
+import { createInitialState, type Character, type GameState } from "./state";
+import { ACTION_COOLDOWN_TICKS, canAct, tick } from "./tick";
+import { decayPerTick, HP_DRAIN_PER_TICK_BY_STATUS } from "./tuning";
 
 // Same 5x4 room as validate.test.ts, plus a second door for open/closed checks.
 //   #####
@@ -164,5 +166,118 @@ describe("canAct", () => {
       expect(result.events.length > 0).toBe(expected);
       s = result.state;
     }
+  });
+});
+
+function bram(state: GameState): Character {
+  const member = state.party.members[0];
+  if (!member) throw new Error("expected the pre-made character in party slot 0");
+  return member;
+}
+
+function withCharacter(state: GameState, patch: Partial<Character>): GameState {
+  return {
+    ...state,
+    party: { ...state.party, members: [{ ...bram(state), ...patch }, null, null, null] },
+  };
+}
+
+function withHunger(
+  state: GameState,
+  cur: number,
+  ravenousness: RavenousnessTier = "standard",
+): GameState {
+  const character = bram(state);
+  return withCharacter(state, {
+    hungerThirst: { ...character.hungerThirst, cur },
+    ravenousness,
+  });
+}
+
+describe("tick — vitals", () => {
+  let state: GameState;
+
+  beforeEach(() => {
+    state = createInitialState(parseLevel(roomLevel()), 1);
+  });
+
+  it("spawns the pre-made character with Rogue and Bard hidden", () => {
+    const character = bram(state);
+    expect(character.classes.fighter.revealed).toBe(true);
+    expect(character.classes.ranger.revealed).toBe(true);
+    expect(character.classes.wizard.revealed).toBe(true);
+    expect(character.classes.priest.revealed).toBe(true);
+    expect(character.classes.rogue.revealed).toBe(false);
+    expect(character.classes.bard.revealed).toBe(false);
+  });
+
+  it("decays Hunger/Thirst by one tick's worth", () => {
+    state = withHunger(state, 100, "standard");
+    const after = bram(tick(state, []).state).hungerThirst.cur;
+    expect(after).toBeCloseTo(100 - decayPerTick("standard"), 6);
+  });
+
+  it("decays faster at higher Ravenousness tiers", () => {
+    const standard = withHunger(state, 100, "standard");
+    const insatiable = withHunger(state, 100, "insatiable");
+
+    const standardAfter = bram(tick(standard, []).state).hungerThirst.cur;
+    const insatiableAfter = bram(tick(insatiable, []).state).hungerThirst.cur;
+
+    expect(insatiableAfter).toBeLessThan(standardAfter);
+  });
+
+  it("scales decay by devDecayMultiplier for dev/testing visibility", () => {
+    let fast = createInitialState(parseLevel(roomLevel()), 1, { devDecayMultiplier: 100 });
+    fast = withHunger(fast, 100, "standard");
+    const after = bram(tick(fast, []).state).hungerThirst.cur;
+    expect(100 - after).toBeCloseTo(decayPerTick("standard") * 100, 4);
+  });
+
+  it("never lets Hunger/Thirst decay below 0", () => {
+    let fast = createInitialState(parseLevel(roomLevel()), 1, { devDecayMultiplier: 1_000_000 });
+    fast = withHunger(fast, 0.5, "standard");
+    const after = bram(tick(fast, []).state).hungerThirst.cur;
+    expect(after).toBe(0);
+  });
+
+  it("drains HP slowly while Ravenous (5-15%)", () => {
+    state = withHunger(state, 10, "standard");
+    const before = bram(state).hp.cur;
+    const after = bram(tick(state, []).state).hp.cur;
+    expect(before - after).toBeCloseTo(HP_DRAIN_PER_TICK_BY_STATUS.ravenous, 6);
+  });
+
+  it("drains HP faster while Starving (<5%) than while Ravenous", () => {
+    const ravenous = withHunger(state, 10, "standard");
+    const starving = withHunger(state, 2, "standard");
+
+    const ravenousDrain = bram(ravenous).hp.cur - bram(tick(ravenous, []).state).hp.cur;
+    const starvingDrain = bram(starving).hp.cur - bram(tick(starving, []).state).hp.cur;
+
+    expect(starvingDrain).toBeGreaterThan(ravenousDrain);
+  });
+
+  it("does not drain HP when Satisfied or better", () => {
+    state = withHunger(state, 50, "standard"); // satisfied range
+    const before = bram(state).hp.cur;
+    const after = bram(tick(state, []).state).hp.cur;
+    expect(after).toBe(before);
+  });
+
+  it("regenerates HP toward max when Well-Fed", () => {
+    state = withCharacter(state, { hp: { cur: 10, max: 20 } });
+    state = withHunger(state, 80, "standard"); // well-fed range
+    const after = bram(tick(state, []).state).hp.cur;
+    expect(after).toBeGreaterThan(10);
+  });
+
+  it("stops HP regen while Ravenous, even if HP is below max", () => {
+    state = withCharacter(state, { hp: { cur: 10, max: 20 } });
+    state = withHunger(state, 10, "standard"); // ravenous range
+    // Ravenous both stops regen and drains — net effect is a decrease, never an increase.
+    const before = bram(state).hp.cur;
+    const after = bram(tick(state, []).state).hp.cur;
+    expect(after).toBeLessThan(before);
   });
 });

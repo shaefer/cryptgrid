@@ -1,8 +1,17 @@
+import { hungerStatus } from "./character/vitals";
 import type { Command, MoveDir, TurnDir } from "./commands";
 import type { SimEvent } from "./events";
 import { FACING_DELTA, type Facing, opposite, turnLeft, turnRight } from "./facing";
 import { isWalkable } from "./level/query";
-import type { GameState, PartyState } from "./state";
+import type { Character, GameState, PartyState, Stat } from "./state";
+import {
+  decayPerTick,
+  HP_DRAIN_PER_TICK_BY_STATUS,
+  HP_REGEN_PER_TICK,
+  MANA_REGEN_PER_TICK,
+  REGEN_MULTIPLIER_BY_STATUS,
+  STAMINA_REGEN_PER_TICK,
+} from "./tuning";
 
 // Shared gate for both moving and turning — a party mid-tween can't chain a
 // second action, mirroring the render-side move/turn tween durations.
@@ -35,6 +44,8 @@ export function tick(state: GameState, commands: readonly Command[]): TickResult
     next = result.state;
     events.push(...result.events);
   }
+
+  next = applyVitalsTick(next);
 
   return { state: next, events };
 }
@@ -95,4 +106,51 @@ function resolveTurn(state: GameState, dir: TurnDir): TickResult {
     state: withParty(state, { facing, moveCooldownUntil: state.tick + ACTION_COOLDOWN_TICKS }),
     events: [{ type: "PartyTurned", facing }],
   };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function regenStat(stat: Stat, perTick: number, multiplier: number): Stat {
+  if (multiplier <= 0 || stat.cur >= stat.max) return stat;
+  return { ...stat, cur: clamp(stat.cur + perTick * multiplier, 0, stat.max) };
+}
+
+/**
+ * Hunger/Thirst decay + status-driven HP/Mana/Stamina regen and HP drain
+ * (docs/STATS.md tier table). Runs every tick regardless of commands —
+ * "Regeneration ticks are computed in the sim at the fixed tick rate"
+ * (ARCHITECTURE.md). devDecayMultiplier scales every rate here (not just
+ * decay) so a dev build can watch the whole tier ladder — including
+ * Ravenous/Starving HP drain — play out in seconds instead of minutes.
+ */
+function tickCharacter(character: Character, devDecayMultiplier: number): Character {
+  const decay = decayPerTick(character.ravenousness) * devDecayMultiplier;
+  const hungerThirst = {
+    ...character.hungerThirst,
+    cur: clamp(character.hungerThirst.cur - decay, 0, character.hungerThirst.overfeedMax),
+  };
+
+  const status = hungerStatus(hungerThirst);
+  const regenMult = REGEN_MULTIPLIER_BY_STATUS[status];
+  const drain = HP_DRAIN_PER_TICK_BY_STATUS[status] * devDecayMultiplier;
+
+  const hp = regenStat(character.hp, HP_REGEN_PER_TICK * devDecayMultiplier, regenMult);
+  const drainedHp = drain > 0 ? { ...hp, cur: clamp(hp.cur - drain, 0, hp.max) } : hp;
+
+  return {
+    ...character,
+    hungerThirst,
+    hp: drainedHp,
+    mana: regenStat(character.mana, MANA_REGEN_PER_TICK * devDecayMultiplier, regenMult),
+    stamina: regenStat(character.stamina, STAMINA_REGEN_PER_TICK * devDecayMultiplier, regenMult),
+  };
+}
+
+function applyVitalsTick(state: GameState): GameState {
+  const members = state.party.members.map((member) =>
+    member ? tickCharacter(member, state.devDecayMultiplier) : member,
+  );
+  return { ...state, party: { ...state.party, members } };
 }

@@ -28,10 +28,57 @@
         pointer-events: none;
         user-select: none;
       }
+      #vitals {
+        position: fixed;
+        left: 12px;
+        top: 12px;
+        pointer-events: none;
+        user-select: none;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+      }
+      .vital-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .vital-label {
+        width: 52px;
+        opacity: 0.85;
+      }
+      .vital-track {
+        position: relative;
+        width: 160px;
+        height: 9px;
+        background: #1a1b1f;
+        border: 1px solid #2e3136;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .vital-fill {
+        position: absolute;
+        inset: 0;
+        width: 0%;
+        transition:
+          width 300ms ease-out,
+          background 300ms ease-out;
+      }
+      .vital-status {
+        margin: 6px 0 6px 60px;
+        opacity: 0.75;
+        font-style: italic;
+      }
+      .vital-classes {
+        margin-left: 60px;
+        opacity: 0.7;
+        font-size: 11px;
+      }
     </style>
   </head>
   <body>
     <div id="app"></div>
+    <div id="vitals"></div>
     <div id="hud"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
