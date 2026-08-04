@@ -13,3 +13,6 @@ assets/textures/_preview/
 
 # Git Bash crash debris on Windows.
 *.stackdump
+
+# Local Claude Code harness state (per-machine, not project config).
+.claude/

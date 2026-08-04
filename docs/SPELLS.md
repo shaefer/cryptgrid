@@ -26,7 +26,7 @@ Glyphs: 24 simple angular SVG marks, generated ourselves (see ASSETS.md). Design
 
 1. Player clicks runes on the HUD rune panel (or keys `1–6`; the panel auto-advances Potency → Essence → Form → Aspect, `Backspace` removes last rune, `Esc` clears).
 2. **Mana is deducted the moment each rune is pressed** (cost = rune base × potency multiplier). Not enough mana → rune won't light; the character grunts. This pay-as-you-compose tension is core DM DNA — keep it.
-3. `Enter` (or clicking the glowing sequence) **invokes**. Valid sequence → spell resolves in the sim, `SpellCast` event fires. Invalid sequence → fizzle: runes flash and scatter, mana already spent is lost. (Character skill/fizzle-chance systems come later; M0 is deterministic.)
+3. `Enter` (or clicking the glowing sequence) **invokes**. Valid sequence → spell resolves in the sim, `SpellCast` event fires. Invalid sequence → fizzle: runes flash and scatter, mana already spent is lost. (Per-spell mastery — usage-based skill that nudges success chance — is designed in STATS.md; M0.9 only tracks it, M0 stays deterministic. It starts affecting success in M1.)
 4. Composed runes persist across other actions until invoked or cleared (you can walk while holding a half-formed spell — classic).
 
 ### Costs & scaling (initial tuning)

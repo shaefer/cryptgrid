@@ -48,6 +48,8 @@ interface Character {
 }
 ```
 
+This sketch shows only the vitals baseline. The full character shape — attributes, classes, weapon skills, resistances, spell mastery, and why Food/Water above becomes one merged Hunger/Thirst field — is designed in STATS.md and lands starting M0.6.
+
 ## Monorepo (pnpm workspaces)
 
 | Package | Role | Key deps |

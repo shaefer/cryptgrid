@@ -7,7 +7,7 @@ First-person, real-time, grid-based dungeon crawler in the tradition of Dungeon 
 1. `docs/ROADMAP.md` — what to build, in order, with acceptance criteria. Always work top-down through the current milestone.
 2. `docs/ARCHITECTURE.md` — the sim/render split. This is the load-bearing decision of the whole project.
 3. `docs/LEVELS.md` — level JSON format (shared contract between game, editor, and future server).
-4. `docs/GAME_DESIGN.md`, `docs/SPELLS.md`, `docs/ASSETS.md` — as needed per task.
+4. `docs/GAME_DESIGN.md`, `docs/SPELLS.md`, `docs/STATS.md`, `docs/ASSETS.md` — as needed per task.
 
 ## Stack
 

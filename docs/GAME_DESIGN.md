@@ -17,12 +17,13 @@ A first-person, **real-time**, grid-based dungeon crawler. You lead a party of a
 ## The party
 
 - Up to **4 characters** in a 2×2 formation (front rank / back rank) occupying **one tile** together. Milestone 0 ships with 1 pre-made character; the data model supports 4 from the start.
-- Each character has five vitals, displayed as bars:
+- Each character has four vitals, displayed as bars:
   - **HP** — reaches 0 → unconscious (death/resurrection design deferred).
   - **Mana** — spent per rune while composing spells; regenerates slowly.
   - **Stamina** — drained by melee attacks and (lightly) by movement; regenerates when idle; at 0, actions slow.
-  - **Food** and **Water** — decay in real time; at 0, HP begins to drain. Restored by consuming items. This is the classic DM survival pressure — keep decay *slow* (a full bar lasts ~20+ minutes of play) so it's a planning concern, not a nag.
+  - **Hunger/Thirst** — one merged bar; food and water items both restore it, each with a small distinct bonus. Decays in real time; at 0, HP begins to drain. This is the classic DM survival pressure — keep decay *slow* (a full bar lasts ~20+ minutes of play) so it's a planning concern, not a nag.
 - Regeneration ticks are computed in the sim at the fixed tick rate; resting (later milestone) accelerates it.
+- Underneath those four bars is a much deeper character system — six attributes, six usage-leveled classes (two hidden until discovered), weapon proficiencies, resistances, per-spell mastery — that the player mostly *doesn't* see directly. Full design: STATS.md.
 
 ## Movement & camera
 
@@ -46,4 +47,4 @@ Real-time: click a character's weapon hand to attack the tile ahead (front rank 
 
 ## What "done" looks like today (Milestone 0 summary)
 
-Walk a textured 3D vault at 60fps; pick up items from floor and alcoves into inventory; find a secret switch that opens a secret door; watch five vitals bars live their lives; cast Light and Firebolt by clicking runes. Full ordered task list: ROADMAP.md.
+Walk a textured 3D vault at 60fps; pick up items from floor and alcoves into inventory; find a secret switch that opens a secret door; watch vitals bars live their lives; cast Light and Firebolt by clicking runes. Full ordered task list: ROADMAP.md.

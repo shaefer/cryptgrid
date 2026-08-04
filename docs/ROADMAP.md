@@ -27,20 +27,20 @@ Smoke test (load, `data-ready`, screenshot artifact, fail on console errors); `d
 **AC:** Live URL playable on phone-a-friend's machine. *(Deliberately early — everything after this ships continuously.)*
 
 ### M0.6 — Party & vitals
-Character model, 4-slot party (1 filled: pre-made character "Bram of the Ninth Door" or Daniel's choice), vitals with decay/regen rates in sim; DOM HUD bars (5 per character, color-coded, smooth width transitions).
-**AC:** Vitest: food/water decay per tick; at 0 food, HP drains. Bars visibly move (dev-speed decay flag for testing).
+Character model, 4-slot party (1 filled: pre-made character "Bram of the Ninth Door" or Daniel's choice). Full progression data model per STATS.md, front-loaded now even though most of it is mechanically inert until later milestones: HP/Mana/Stamina + a merged Hunger/Thirst bar (replaces separate Food/Water) with a hidden Ravenousness tier and an overfeed overflow; the six primary attributes (STR/DEX/CHA/VIT/WIS/INT); all six classes tracked (Fighter/Ranger/Wizard/Priest visible, Rogue/Bard permanently `revealed: false` until M1/M2 add their reveal triggers); hidden per-weapon-type skill stubs; hidden elemental-resistance stubs; sparse spell-mastery tracking shape; armor-tier qualification rules. New `packages/sim/src/character/` (mirrors `level/`, `items/`) and `packages/sim/src/tuning.ts` for every tunable formula (exp curve, decay rates, carry-capacity formula). DOM HUD: **4** vitals bars (not 5) — color-coded, smooth width transitions, Hunger/Thirst with overfeed shown as a second-colored overflow segment and a status label (Gorged…Starving) — plus visible levels for the four revealed classes.
+**AC:** Vitest: Hunger/Thirst decays per tick, scaled by Ravenousness tier; status tier transitions match the STATS.md table; at Starving, HP drains. Exp-curve and carry-capacity formulas covered (formulas only — carry capacity isn't enforced until M0.7, nothing exists yet to consume it). Bars visibly move (dev-speed decay flag for testing). Rogue/Bard exist in state but never render on the HUD.
 
 ### M0.7 — Items & inventory
-Item registry, floor item sprites, raycast click + `F` interact → PICKUP command; shared inventory DOM panel (click consumables to use → food/water restore); alcoves render + take/place.
-**AC:** Vitest: pickup removes from level/adds to inventory; consume restores stat and destroys item; alcove take/place round-trips. In game: loot the alcove room end-to-end.
+Item registry (+ weight field; `ConsumableEffect` restructured to `{kind: "food"|"water", amount, bonus?}` per STATS.md, replacing the old `restores: "food"|"water"` shape now that Hunger/Thirst is one bar), floor item sprites, raycast click + `F` interact → PICKUP command (rejected once STR-derived carry capacity, `tuning.ts`, is exceeded — the first real consumer of an attribute); shared inventory DOM panel (click consumables to use → restores Hunger/Thirst, food/water each carrying a small distinct bonus).
+**AC:** Vitest: pickup removes from level/adds to inventory; pickup blocked over carry capacity; consume restores Hunger/Thirst and destroys item; alcove take/place round-trips. In game: loot the alcove room end-to-end.
 
 ### M0.8 — Switches, doors, secrets
 Lever + portcullis (animated slide, blocks movement while closed); secret-switch wall variant + INTERACT toggle; secret door (wall until opened, grinds aside on event).
 **AC:** Vitest: lever toggles door; closed door blocks MOVE; secret switch opens secret door. In game: find the secret brick by eye, click it, watch the wall move. **Human checkpoint: is the secret findable-but-not-obvious?**
 
 ### M0.9 — Runes & first spells
-Rune data (24 runes, SPELLS.md), glyph generation, HUD rune panel (click + keys 1–6, backspace/esc), pay-per-rune mana deduction, invoke/fizzle; Light (torch radius boost w/ duration) and Firebolt (sim projectile entity, 1 tile/2 ticks, wall impact event + renderer flash).
-**AC:** Vitest: mana deducted per rune press; insufficient mana blocks rune; `Kor Ign Dart` spawns projectile; projectile halts at wall; invalid sequence fizzles (mana lost). In game: read the inscription, cast your first Firebolt down a dark corridor. That's the money moment — make the projectile glow and light the walls as it passes (point light parented to projectile).
+Rune data (24 runes, SPELLS.md), glyph generation, HUD rune panel (click + keys 1–6, backspace/esc), pay-per-rune mana deduction, invoke/fizzle; Light (torch radius boost w/ duration) and Firebolt (sim projectile entity, 1 tile/2 ticks, wall impact event + renderer flash). Each successful cast increments that spell's mastery counter (STATS.md) — tracked now, inert until M1 makes it affect success chance; M0 stays deterministic per SPELLS.md.
+**AC:** Vitest: mana deducted per rune press; insufficient mana blocks rune; `Kor Ign Dart` spawns projectile; projectile halts at wall; invalid sequence fizzles (mana lost); casting increments spell-mastery uses. In game: read the inscription, cast your first Firebolt down a dark corridor. That's the money moment — make the projectile glow and light the walls as it passes (point light parented to projectile).
 
 ### M0.10 — Editor v1
 `apps/editor` per LEVELS.md editor spec (paint/feature/item modes, JSON pane, validation, import/export, localStorage autosave); deployed to Pages alongside game.
@@ -49,10 +49,12 @@ Rune data (24 runes, SPELLS.md), glyph generation, HUD rune panel (click + keys 
 *(M0.10 may slip to tomorrow without shame — M0.1–M0.9 is the "running game by end of day" bar.)*
 
 ## Milestone 1 — "Something in the Dark"
-Monsters (grid AI: patrol/chase/attack, tile occupancy), melee combat (per-hand cooldowns, front/back rank rules), damage/death/loot, floor triggers + pressure plates + pits, keys/locked doors, SFX pass, 2–3 more spells (Frostbolt, Mend, Healmist), multi-floor levels + stairs, editor: spawns/triggers/playtest button.
+Monsters (grid AI: patrol/chase/attack, tile occupancy, CHA-weighted targeting per STATS.md), melee **and ranged (bow)** combat (per-hand cooldowns, front/back rank rules — ranged is Ranger's entire exp source, so it lands here, not later), damage/death/loot, floor triggers + pressure plates + pits, keys **and lockpicking** on locked doors (first successful pick reveals the Rogue class), a poison status effect (groundwork for Rogue's identity, pairs with M2's throwing items), SFX pass, 2–3 more spells (Frostbolt, Mend, Healmist). Weapon-skill growth, STR/DEX damage/dodge, and elemental resistances (STATS.md) all go live here — this is the first milestone anything actually reads them. Spell mastery starts affecting cast-success chance, fulfilling SPELLS.md's deferred "character skill/fizzle-chance systems come later" line. Multi-floor levels + stairs, editor: spawns/triggers/playtest button.
 
 ## Milestone 2 — "The Long Delve"
-Per-character paper-doll inventory + equipment, character creation/party of 4, save/load (runtime delta serialization), rest system, hunger/thirst tuning pass, more essences/forms live, Truesight + subtle-secrets economy, throwing items, doors destructible, content: 4-floor vault campaign, Kenney prop set-dressing pass, ambience audio.
+Per-character paper-doll inventory + equipment (armor tiers from STATS.md become wearable here, not just qualified-for), character creation/party of 4, a bard instrument item (first use reveals the Bard class), save/load (runtime delta serialization), rest system, hunger/thirst tuning pass (Ravenousness-tier-shifting effects, status-revealing magic items), more essences/forms live, Truesight + subtle-secrets economy, throwing items, doors destructible, content: 4-floor vault campaign, Kenney prop set-dressing pass, ambience audio.
+
+*Exploratory, unscheduled:* a CHA-driven vendor/haggling economy (STATS.md) has no committed milestone — M2 is its earliest plausible home given the equipment/economy focus above, but this is a candidate to revisit once M2's scope firms up, not a bullet to build against yet.
 
 ## Milestone 3 — "Delve Together"
 `apps/server`: Colyseus room wrapping the sim; command transport; client prediction for own movement; lobby/join-by-code; party = one character per player; Docker → AWS Fargate (ALB, WebSockets); Pages client pointed at server for MP mode while solo remains fully offline.

@@ -11,6 +11,7 @@ A first-person, real-time, grid-based dungeon crawler in the tradition of Dungeo
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — sim/render/net architecture
 - [`docs/LEVELS.md`](docs/LEVELS.md) — level format + editor spec
 - [`docs/SPELLS.md`](docs/SPELLS.md) — the Rune Tongue
+- [`docs/STATS.md`](docs/STATS.md) — attributes, classes, vitals & progression
 - [`docs/ASSETS.md`](docs/ASSETS.md) — asset generation & provenance
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — milestones & acceptance criteria
 
