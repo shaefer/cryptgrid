@@ -60,6 +60,13 @@ The level JSON is the shared contract between `apps/editor`, `apps/game`, `packa
     { "id": "itm_flask_1", "type": "waterflask", "x": 6, "z": 7 }
   ],
 
+  // Optional, sparse (M0.10) — forces a specific wall look at a specific wall
+  // cell, overriding the deterministic auto-pick (packages/sim/src/hash.ts).
+  // Most wall cells have no entry here and fall back to the hash.
+  "wallOverrides": [
+    { "x": 9, "z": 4, "variant": "hewn" }
+  ],
+
   // Future-proof stubs (empty arrays fine in v1):
   "triggers": [],   // floor plates, tile-enter events (M1+)
   "spawns": []      // monsters (M1+)
@@ -76,21 +83,25 @@ The sim parses authored JSON into `LevelRuntime`: cells become a typed grid; doo
 
 ## Validation
 
-`packages/sim/src/level/validate.ts` — loadable from editor, game, and tests: rectangular `cells` matching width/height; `start` on floor; doors on `D`/`S` cells and vice versa; features attached to a wall that exists (the referenced face must border a wall or door cell); unique ids; `targets` resolve (against door ids **or**, starting M0.8, alcove feature ids — a switch can reveal a hidden alcove the same way it opens a secret door); items on floor cells; starting M0.7, no two items may share the same `(x, z, slot)` — slot defaults to `"center"` when omitted, so this also catches two centerless items stacked on one tile. Editor runs this on export and shows errors inline.
+`packages/sim/src/level/validate.ts` — loadable from editor, game, and tests: rectangular `cells` matching width/height; `start` on floor; doors on `D`/`S` cells and vice versa; features attached to a wall that exists (the referenced face must border a wall or door cell); unique ids; `targets` resolve (against door ids **or**, starting M0.8, alcove feature ids — a switch can reveal a hidden alcove the same way it opens a secret door); items on floor cells; starting M0.7, no two items may share the same `(x, z, slot)` — slot defaults to `"center"` when omitted, so this also catches two centerless items stacked on one tile; starting M0.10, each `wallOverrides` entry must target an actual wall cell (`#`/`X`, never a door or floor cell), name a known variant id, and appear at most once per cell. The editor runs this live (every edit, not just on export) and lists errors inline.
 
 # EDITOR SPEC (apps/editor)
 
-A React grid painter. Function over beauty — but keep it pleasant, you'll live in it.
+A React + SVG grid painter (`apps/editor/src`). Function over beauty — but keep it pleasant, you'll live in it. Built in M0.10; works directly against `LevelJSON` from `@cryptgrid/sim` (no separate editor-only shape), and shares `tools/viteSharedData.mjs` with `apps/game` so both dev servers and both production builds serve `/levels/*` and `/assets/*` identically.
 
-## M0-scope editor (build it right after the game loop runs — see ROADMAP)
+## M0.10 editor (shipped)
 
-- **Canvas grid** (SVG or canvas): paint tools — Wall, Floor, Door, Secret Door, Void, Start Position; click-drag paints; right-click erases to floor.
-- **Feature mode:** select a cell edge to attach switch/lever/alcove/inscription; sidebar form edits properties (`variant`, `targets` multi-select with dropdown of door ids, `text`, alcove item list).
-- **Item mode:** click a floor cell, pick item type from registry, optional custom id (auto-generated otherwise).
-- **Live JSON pane:** the level as formatted JSON, two-way (paste JSON → grid updates). Import/Export buttons (download file / load file). Validation errors displayed inline.
-- **Legend + keyboard shortcuts** (1–6 tool select).
-- Persistence: browser localStorage autosave of working level + export to file. (Editor-to-repo flow: export JSON, commit to `levels/`.)
+Four modes, one grid. All four layers render at once for spatial context — terrain always at full strength; wall-override badges, item dots, and feature ticks dim to ~35-50% opacity and stop taking pointer events when their mode isn't active — so switching modes never hides what you already built elsewhere, it only changes what's currently editable.
+
+- **Terrain mode:** paint tools — Floor, Wall, Void, Door, Secret Door, Start (keys 1–6). Click-drag paints; right-click erases to floor. Painting Door/Secret Door auto-creates a matching `doors[]` entry (auto id, sensible defaults); painting anything else over an existing door cell removes it — the grid and `doors[]` never drift apart. Clicking an already-painted door cell with the matching tool selects it for editing instead of no-op-repainting.
+- **Walls mode:** click any wall cell (`#`/`X`) to cycle its `wallOverrides` entry: Auto → Stone → Fieldstone → Hewn → Auto. A gold outline marks a cell with an authored override so it reads differently from the deterministic auto-pick at a glance.
+- **Items mode:** each floor cell exposes its 5 sub-tile slots (center + 4 corners, `docs/LEVELS.md` "Coordinates & facing"). Pick a type from the toolbar, click an empty slot to place it (auto id); click an occupied slot to select it for editing; right-click removes it.
+- **Features mode:** floor cells bordering a wall/door render a small tick on each qualifying edge (matching `validate.ts`'s own `feature-face-no-wall` rule, so nothing placeable in the editor can ever fail that check). Pick a feature type, click an empty tick to place it, click an occupied one to edit, right-click removes it. The switch/lever form's targets checklist lists doors *and* alcove ids (M0.8's widened target resolution); the alcove form has a `hidden` checkbox and an add/remove item list; the inscription form is a text box.
+- **Property panel:** contextual — shows whatever's selected (door/item/feature/start), or level-wide `id`/`name` fields when nothing is selected.
+- **Live JSON pane:** two-way. Grid edits always re-serialize into it; typed edits apply back to the grid on demand (an explicit Apply/Revert pair, not parse-on-keystroke, so a mid-edit invalid JSON string doesn't fight the grid). `validateLevel()` runs on every render against the live level and lists every error inline — the same check the game trusts, so "the editor says it's clean" and "the game will load it" mean the same thing.
+- **File bar:** New (with width/height), Import (file picker), Export (browser download), Load vault01 (fetches `levels/vault01.json` from the shared data root). `localStorage` autosaves on every change and reloads on mount; a brand-new session with no autosave prefers `vault01.json` over a blank grid so the editor opens onto real content the first time.
+- **Keyboard hit-target note:** SVG's default hit-testing only counts a shape's *painted* area — `fill="none"` and a bare thin `<line>` stroke are both effectively unclickable outside a razor-thin region. Every clickable marker (item slots, feature ticks) pairs its visible shape with a `fill`/`stroke`-`"transparent"` companion sized for an actual click, not just a render. Found the hard way — via Playwright, not by inspection — during M0.10's own verification pass.
 
 ## Later (M1+)
 
-Playtest button (opens game with level via URL param or postMessage), multi-floor support, trigger editor, monster spawns, undo/redo, tile-variant painting.
+Playtest button (opens game with level via URL param or postMessage), multi-floor support, trigger editor, spawn editor, undo/redo, tile-variant painting brush (paint a wall-override region instead of one cell at a time).

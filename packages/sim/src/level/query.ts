@@ -1,3 +1,4 @@
+import { autoWallVariant, type WallVariantId } from "../hash";
 import type {
   AlcoveFeature,
   CellChar,
@@ -44,6 +45,12 @@ export function findDoorById(level: LevelRuntime, id: string): LevelDoor | undef
 
 export function findFeatureById(level: LevelRuntime, id: string): WallFeature | undefined {
   return level.wallFeatures.find((feature) => feature.id === id);
+}
+
+/** The wall look at (x, z) — an authored override if one exists there, else the deterministic auto-pick. */
+export function resolveWallVariant(level: LevelRuntime, x: number, z: number): WallVariantId {
+  const override = level.wallOverrides.find((o) => o.x === x && o.z === z);
+  return override ? override.variant : autoWallVariant(x, z);
 }
 
 /** Every alcove reachable from the floor cell (x, z) — hidden ones excluded unless includeHidden. */

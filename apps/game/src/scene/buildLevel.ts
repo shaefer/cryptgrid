@@ -2,9 +2,11 @@ import * as THREE from "three";
 import {
   cellCharAt as simCellCharAt,
   findDoorAt,
-  wallVariantIndex,
+  resolveWallVariant,
+  WALL_VARIANT_IDS,
   type Facing,
   type LevelRuntime,
+  type WallVariantId,
 } from "@cryptgrid/sim";
 import type { DungeonTextures } from "./textures";
 
@@ -71,7 +73,7 @@ export function buildLevel(
   level: LevelRuntime,
   textures: DungeonTextures,
 ): BuildResult {
-  const variantFaces: BoundaryFace[][] = textures.wallVariants.map(() => []);
+  const variantFaces: Record<WallVariantId, BoundaryFace[]> = { stone: [], fieldstone: [], hewn: [] };
   const doorFaces = new Map<string, BoundaryFace[]>();
   const featureFaces = new Map<string, BoundaryFace>();
   const floorCells: { x: number; z: number }[] = [];
@@ -130,14 +132,14 @@ export function buildLevel(
           continue;
         }
 
-        variantFaces[wallVariantIndex(nx, nz, textures.wallVariants.length)]?.push(boundary);
+        variantFaces[resolveWallVariant(level, nx, nz)].push(boundary);
       }
     }
   }
 
-  textures.wallVariants.forEach((variant, i) => {
-    addFaceMesh(scene, variantFaces[i] ?? [], variant.base, false);
-  });
+  for (const id of WALL_VARIANT_IDS) {
+    addFaceMesh(scene, variantFaces[id], textures.wallVariants[id].base, false);
+  }
   addFloorAndCeiling(scene, floorCells, textures);
 
   return { doorFaces, featureFaces };

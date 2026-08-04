@@ -16,3 +16,12 @@ export function cellHash(x: number, z: number): number {
 export function wallVariantIndex(x: number, z: number, count: number): number {
   return count > 0 ? cellHash(x, z) % count : 0;
 }
+
+/** The 3 wall looks shipped since M0.8 (ASSETS.md) — order is load-bearing, matches DungeonTextures.wallVariants. */
+export const WALL_VARIANT_IDS = ["stone", "fieldstone", "hewn"] as const;
+export type WallVariantId = (typeof WALL_VARIANT_IDS)[number];
+
+/** The variant a wall cell gets with no authored override — deterministic, zero authoring burden. */
+export function autoWallVariant(x: number, z: number): WallVariantId {
+  return WALL_VARIANT_IDS[wallVariantIndex(x, z, WALL_VARIANT_IDS.length)]!;
+}

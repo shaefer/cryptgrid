@@ -1,4 +1,5 @@
 import { FACING_DELTA } from "../facing";
+import { WALL_VARIANT_IDS, type WallVariantId } from "../hash";
 import { ITEM_REGISTRY } from "../items/registry";
 import type { LevelJSON } from "./types";
 
@@ -176,6 +177,39 @@ export function validateLevel(level: LevelJSON): ValidationError[] {
       });
     }
     seenSlots.add(slotKey);
+  }
+
+  const seenWallOverrides = new Set<string>();
+  for (const override of level.wallOverrides ?? []) {
+    const key = `${override.x},${override.z}`;
+    if (seenWallOverrides.has(key)) {
+      errors.push({
+        code: "wall-override-duplicate",
+        message: `wall texture override at (${override.x},${override.z}) is defined more than once`,
+      });
+    }
+    seenWallOverrides.add(key);
+
+    if (!inBounds(override.x, override.z)) {
+      errors.push({
+        code: "wall-override-oob",
+        message: `wall texture override at (${override.x},${override.z}) is out of bounds`,
+      });
+      continue;
+    }
+    const ch = cellAt(override.x, override.z);
+    if (ch !== "#" && ch !== "X") {
+      errors.push({
+        code: "wall-override-not-wall",
+        message: `wall texture override at (${override.x},${override.z}) does not target a wall cell (found "${ch}")`,
+      });
+    }
+    if (!WALL_VARIANT_IDS.includes(override.variant as WallVariantId)) {
+      errors.push({
+        code: "unknown-wall-variant",
+        message: `wall texture override at (${override.x},${override.z}) has unknown variant "${override.variant}"`,
+      });
+    }
   }
 
   return errors;

@@ -19,13 +19,14 @@
     "####...####...##",
     "####...####...##",
     "####...####...##",
-    "################",
-    "################"
+    "############D###",
+    "##########.....#"
   ],
   "start": { "x": 2, "z": 2, "facing": "S" },
   "doors": [
     { "id": "door_hall", "x": 8, "z": 5, "type": "portcullis", "open": false },
-    { "id": "secret_a", "x": 12, "z": 10, "type": "secret", "open": false }
+    { "id": "secret_a", "x": 12, "z": 10, "type": "secret", "open": false },
+    { "id": "door_storage", "x": 12, "z": 14, "type": "portcullis", "open": false }
   ],
   "wallFeatures": [
     { "id": "lever_1", "x": 8, "z": 6, "face": "E", "type": "lever",
@@ -39,14 +40,23 @@
     { "id": "sw_hidden2", "x": 11, "z": 13, "face": "S", "type": "switch",
       "variant": "secretBrick", "targets": ["alc_hidden1"], "action": "toggle" },
     { "id": "txt_1", "x": 3, "z": 7, "face": "N", "type": "inscription",
-      "text": "Kor Ign Dart drives back the dark." }
+      "text": "Kor Ign Dart drives back the dark." },
+    { "id": "lever_2", "x": 13, "z": 13, "face": "S", "type": "lever",
+      "targets": ["door_storage"], "action": "toggle" }
   ],
   "items": [
     { "id": "itm_sword_1", "type": "shortsword", "x": 3, "z": 1, "slot": "sw" },
     { "id": "itm_bread_start", "type": "bread", "x": 3, "z": 1, "slot": "se" },
     { "id": "itm_bread_1", "type": "bread", "x": 6, "z": 7 },
     { "id": "itm_flask_1", "type": "waterflask", "x": 13, "z": 7 },
-    { "id": "itm_scroll_1", "type": "scroll", "x": 8, "z": 2 }
+    { "id": "itm_scroll_1", "type": "scroll", "x": 8, "z": 2 },
+    { "id": "itm_flask_2", "type": "waterflask", "x": 11, "z": 15 },
+    { "id": "itm_key_2", "type": "ironkey", "x": 13, "z": 15 }
+  ],
+  "wallOverrides": [
+    { "x": 10, "z": 6, "variant": "hewn" },
+    { "x": 9, "z": 6, "variant": "fieldstone" },
+    { "x": 13, "z": 10, "variant": "stone" }
   ],
   "triggers": [],
   "spawns": []

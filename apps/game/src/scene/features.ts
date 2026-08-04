@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {
-  wallVariantIndex,
+  resolveWallVariant,
   type AlcoveItem,
   type LevelRuntime,
   type SimEvent,
@@ -57,7 +57,7 @@ export class FeatureViews {
 
   constructor(
     private readonly scene: THREE.Scene,
-    level: LevelRuntime,
+    private readonly level: LevelRuntime,
     private readonly textures: DungeonTextures,
     private readonly itemTextures: ItemTextures,
     featureFaces: Map<string, BoundaryFace>,
@@ -144,11 +144,8 @@ export class FeatureViews {
    * with the stone that actually surrounds it (ASSETS.md).
    */
   private buildSecretSwitchFace(featureId: string, face: BoundaryFace): void {
-    const variant =
-      this.textures.wallVariants[
-        wallVariantIndex(face.wallCellX, face.wallCellZ, this.textures.wallVariants.length)
-      ];
-    if (!variant) return;
+    const variantId = resolveWallVariant(this.level, face.wallCellX, face.wallCellZ);
+    const variant = this.textures.wallVariants[variantId];
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(TILE_SIZE, WALL_HEIGHT),
       new THREE.MeshStandardMaterial({ map: variant.secretSwitch, roughness: 0.95 }),
@@ -162,11 +159,8 @@ export class FeatureViews {
 
   /** A hidden alcove is just wall: its cell's base variant, no entity tag, nothing to find by clicking. */
   private buildHiddenAlcoveFace(view: AlcoveView): void {
-    const variant =
-      this.textures.wallVariants[
-        wallVariantIndex(view.face.wallCellX, view.face.wallCellZ, this.textures.wallVariants.length)
-      ];
-    if (!variant) return;
+    const variantId = resolveWallVariant(this.level, view.face.wallCellX, view.face.wallCellZ);
+    const variant = this.textures.wallVariants[variantId];
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(TILE_SIZE, WALL_HEIGHT),
       new THREE.MeshStandardMaterial({ map: variant.base, roughness: 0.95 }),

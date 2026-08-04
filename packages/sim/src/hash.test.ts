@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cellHash, wallVariantIndex } from "./hash";
+import { autoWallVariant, cellHash, WALL_VARIANT_IDS, wallVariantIndex } from "./hash";
 
 describe("cellHash", () => {
   it("returns the same result on repeated calls for the same cell", () => {
@@ -48,5 +48,19 @@ describe("wallVariantIndex", () => {
 
   it("tolerates count 0 without dividing by zero", () => {
     expect(wallVariantIndex(1, 1, 0)).toBe(0);
+  });
+});
+
+describe("autoWallVariant", () => {
+  it("always returns one of the 3 canonical variant ids", () => {
+    for (let x = 0; x < 10; x++) {
+      for (let z = 0; z < 10; z++) {
+        expect(WALL_VARIANT_IDS).toContain(autoWallVariant(x, z));
+      }
+    }
+  });
+
+  it("matches wallVariantIndex's pick by position in WALL_VARIANT_IDS", () => {
+    expect(autoWallVariant(5, 5)).toBe(WALL_VARIANT_IDS[wallVariantIndex(5, 5, 3)]);
   });
 });

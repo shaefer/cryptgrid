@@ -141,4 +141,35 @@ describe("validateLevel", () => {
     const errors = validateLevel(level);
     expect(errors.some((e) => e.code === "item-slot-collision")).toBe(false);
   });
+
+  it("accepts a wall texture override on an actual wall cell", () => {
+    const level = baseLevel();
+    level.wallOverrides = [{ x: 0, z: 0, variant: "hewn" }];
+    expect(validateLevel(level)).toEqual([]);
+  });
+
+  it("catches a wall texture override on a non-wall cell", () => {
+    const level = baseLevel();
+    level.wallOverrides = [{ x: 1, z: 1, variant: "hewn" }]; // floor, not wall
+    const errors = validateLevel(level);
+    expect(errors.some((e) => e.code === "wall-override-not-wall")).toBe(true);
+  });
+
+  it("catches an unknown wall variant id", () => {
+    const level = baseLevel();
+    // @ts-expect-error deliberately malformed for the runtime check
+    level.wallOverrides = [{ x: 0, z: 0, variant: "marble" }];
+    const errors = validateLevel(level);
+    expect(errors.some((e) => e.code === "unknown-wall-variant")).toBe(true);
+  });
+
+  it("catches two overrides authored for the same cell", () => {
+    const level = baseLevel();
+    level.wallOverrides = [
+      { x: 0, z: 0, variant: "hewn" },
+      { x: 0, z: 0, variant: "fieldstone" },
+    ];
+    const errors = validateLevel(level);
+    expect(errors.some((e) => e.code === "wall-override-duplicate")).toBe(true);
+  });
 });

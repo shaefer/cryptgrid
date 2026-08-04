@@ -1,4 +1,5 @@
 import type { Facing } from "../facing";
+import type { WallVariantId } from "../hash";
 
 export type CellChar = "#" | "." | "D" | "S" | "X";
 
@@ -77,6 +78,18 @@ export interface LevelItem {
   slot?: ItemSlot;
 }
 
+/**
+ * Forces a specific wall look at a specific wall cell, overriding the
+ * deterministic auto-pick (docs/ROADMAP.md M0.10) — e.g. to make sure a
+ * secret switch's surrounding stone reads a particular way. Sparse: most
+ * wall cells have no entry and fall back to the hash.
+ */
+export interface WallOverride {
+  x: number;
+  z: number;
+  variant: WallVariantId;
+}
+
 export interface LevelJSON {
   formatVersion: 1;
   id: string;
@@ -88,6 +101,8 @@ export interface LevelJSON {
   doors: LevelDoor[];
   wallFeatures: WallFeature[];
   items: LevelItem[];
+  /** Optional — omitted/empty is the common case; every existing level file stays valid untouched. */
+  wallOverrides?: WallOverride[];
   triggers: unknown[];
   spawns: unknown[];
 }
@@ -102,4 +117,5 @@ export interface LevelRuntime {
   doors: LevelDoor[];
   wallFeatures: WallFeature[];
   items: LevelItem[];
+  wallOverrides: WallOverride[];
 }

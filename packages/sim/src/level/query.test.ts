@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { findItemAt, findItemById } from "./query";
-import type { LevelItem, LevelRuntime } from "./types";
+import { autoWallVariant } from "../hash";
+import { findItemAt, findItemById, resolveWallVariant } from "./query";
+import type { LevelItem, LevelRuntime, WallOverride } from "./types";
 
 function levelWithItems(items: LevelItem[]): LevelRuntime {
   return {
@@ -13,7 +14,12 @@ function levelWithItems(items: LevelItem[]): LevelRuntime {
     doors: [],
     wallFeatures: [],
     items,
+    wallOverrides: [],
   };
+}
+
+function levelWithWallOverrides(overrides: WallOverride[]): LevelRuntime {
+  return { ...levelWithItems([]), wallOverrides: overrides };
 }
 
 describe("findItemAt", () => {
@@ -62,5 +68,25 @@ describe("findItemById", () => {
   it("returns undefined for an unknown id", () => {
     const level = levelWithItems([{ id: "itm_1", type: "torch", x: 1, z: 1 }]);
     expect(findItemById(level, "does-not-exist")).toBeUndefined();
+  });
+});
+
+describe("resolveWallVariant", () => {
+  it("falls back to the deterministic auto-pick with no override", () => {
+    const level = levelWithWallOverrides([]);
+    expect(resolveWallVariant(level, 0, 0)).toBe(autoWallVariant(0, 0));
+  });
+
+  it("an authored override at that exact cell wins over the auto-pick", () => {
+    // Pick whichever variant the hash *wouldn't* have chosen, so the override is provably in effect.
+    const auto = autoWallVariant(0, 0);
+    const forced = auto === "hewn" ? "stone" : "hewn";
+    const level = levelWithWallOverrides([{ x: 0, z: 0, variant: forced }]);
+    expect(resolveWallVariant(level, 0, 0)).toBe(forced);
+  });
+
+  it("only applies to the cell it's authored for", () => {
+    const level = levelWithWallOverrides([{ x: 0, z: 0, variant: "fieldstone" }]);
+    expect(resolveWallVariant(level, 1, 0)).toBe(autoWallVariant(1, 0));
   });
 });

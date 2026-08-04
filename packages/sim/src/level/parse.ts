@@ -12,5 +12,6 @@ export function parseLevel(json: LevelJSON): LevelRuntime {
     doors: json.doors.map((d) => ({ ...d })),
     wallFeatures: json.wallFeatures.map((f) => ({ ...f })),
     items: json.items.map((i) => ({ ...i })),
+    wallOverrides: (json.wallOverrides ?? []).map((o) => ({ ...o })),
   };
 }

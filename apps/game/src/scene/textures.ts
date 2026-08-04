@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { WallVariantId } from "@cryptgrid/sim";
 
 /** One wall look + its matching secret-switch tell — never mix pairs across looks (ASSETS.md). */
 export interface WallVariant {
@@ -7,8 +8,8 @@ export interface WallVariant {
 }
 
 export interface DungeonTextures {
-  /** Indexed by the sim's wallVariantIndex(cellX, cellZ, wallVariants.length). */
-  wallVariants: WallVariant[];
+  /** Keyed by the sim's WallVariantId — resolveWallVariant() picks which entry applies per cell. */
+  wallVariants: Record<WallVariantId, WallVariant>;
   alcoveBack: THREE.Texture;
   floor: THREE.Texture;
   ceiling: THREE.Texture;
@@ -64,11 +65,11 @@ export async function loadDungeonTextures(): Promise<DungeonTextures> {
   ]);
 
   return {
-    wallVariants: [
-      { base: wallStone, secretSwitch: wallStoneSecret },
-      { base: wallFieldstone, secretSwitch: wallFieldstoneSecret },
-      { base: wallHewn, secretSwitch: wallHewnSecret },
-    ],
+    wallVariants: {
+      stone: { base: wallStone, secretSwitch: wallStoneSecret },
+      fieldstone: { base: wallFieldstone, secretSwitch: wallFieldstoneSecret },
+      hewn: { base: wallHewn, secretSwitch: wallHewnSecret },
+    },
     alcoveBack,
     floor,
     ceiling,
