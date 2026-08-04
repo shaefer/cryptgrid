@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { LevelJSON } from "./level/types";
 import { parseLevel } from "./level/parse";
 import { createInitialState, type GameState } from "./state";
-import { ACTION_COOLDOWN_TICKS, tick } from "./tick";
+import { ACTION_COOLDOWN_TICKS, canAct, tick } from "./tick";
 import type { Facing } from "./facing";
 
 // Same 5x4 room as validate.test.ts, plus a second door for open/closed checks.
@@ -123,5 +123,46 @@ describe("tick — turning", () => {
     const second = tick(first.state, [{ type: "TURN", dir: "right" }]);
     expect(second.state.party.facing).toBe("E"); // unchanged — rejected
     expect(second.events).toEqual([]);
+  });
+});
+
+describe("canAct", () => {
+  it("is true on a fresh state and false while the cooldown runs", () => {
+    const state = createInitialState(parseLevel(roomLevel()), 1);
+    expect(canAct(state)).toBe(true);
+
+    const moved = tick(state, [{ type: "MOVE", dir: "forward" }]).state;
+    expect(canAct(moved)).toBe(false);
+  });
+
+  it("gates a held key to exactly one action per cooldown, dropping none", () => {
+    // Drives the sim the way the client does (issue only when canAct) and
+    // asserts the steady cadence that makes held-key movement glide.
+    let s = createInitialState(parseLevel(roomLevel()), 1);
+    const TICKS = 20;
+    let actions = 0;
+
+    for (let i = 0; i < TICKS; i++) {
+      const commands = canAct(s) ? ([{ type: "MOVE", dir: "forward" }] as const) : [];
+      const result = tick(s, commands);
+      if (result.events.length > 0) actions++;
+      s = result.state;
+    }
+
+    expect(actions).toBe(TICKS / ACTION_COOLDOWN_TICKS);
+  });
+
+  it("agrees with whether the sim actually accepts a command", () => {
+    const state = createInitialState(parseLevel(roomLevel()), 1);
+    let s = tick(state, [{ type: "MOVE", dir: "forward" }]).state;
+
+    // Walk forward through the cooldown; whenever canAct says yes, a command
+    // must produce an event, and whenever it says no, it must produce none.
+    for (let i = 0; i < 8; i++) {
+      const expected = canAct(s);
+      const result = tick(s, [{ type: "TURN", dir: "right" }]);
+      expect(result.events.length > 0).toBe(expected);
+      s = result.state;
+    }
   });
 });

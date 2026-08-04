@@ -13,6 +13,18 @@ export interface TickResult {
   events: SimEvent[];
 }
 
+/**
+ * Whether a command passed to the next tick() will actually resolve. Clients
+ * gate their input buffer on this so a queued command isn't silently swallowed
+ * by a tick that would reject it.
+ *
+ * Compares against tick + 1 because tick() advances the counter before
+ * resolving commands — a command handed to tick() resolves at tick + 1.
+ */
+export function canAct(state: GameState): boolean {
+  return state.tick + 1 >= state.party.moveCooldownUntil;
+}
+
 export function tick(state: GameState, commands: readonly Command[]): TickResult {
   let next: GameState = { ...state, tick: state.tick + 1 };
   const events: SimEvent[] = [];

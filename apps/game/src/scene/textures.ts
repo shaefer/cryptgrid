@@ -12,7 +12,8 @@ export async function loadDungeonTextures(): Promise<DungeonTextures> {
   const loader = new THREE.TextureLoader();
 
   const load = async (name: string): Promise<THREE.Texture> => {
-    const tex = await loader.loadAsync(`/assets/textures/${name}.png`);
+    // BASE_URL keeps these working both at "/" in dev and "/cryptgrid/" on Pages.
+    const tex = await loader.loadAsync(`${import.meta.env.BASE_URL}assets/textures/${name}.png`);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.colorSpace = THREE.SRGBColorSpace;

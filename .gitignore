@@ -10,3 +10,6 @@ test-results/
 
 # Regenerable QA artifact from tools/gen-textures (pnpm gen:textures) — not shipped.
 assets/textures/_preview/
+
+# Git Bash crash debris on Windows.
+*.stackdump
