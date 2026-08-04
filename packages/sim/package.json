@@ -1,0 +1,13 @@
+{
+  "name": "@cryptgrid/sim",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure TypeScript authoritative simulation — no three, no DOM, no wall-clock time",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

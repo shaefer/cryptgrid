@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cryptgrid: Vault of Shadows</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0d0e12;
+        color: #b8b2a4;
+        font-family: Georgia, "Times New Roman", serif;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+      #hud {
+        position: fixed;
+        left: 12px;
+        bottom: 10px;
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        opacity: 0.8;
+        pointer-events: none;
+        user-select: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
