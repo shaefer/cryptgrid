@@ -17,7 +17,7 @@ Two mechanisms cover everything below, chosen per-system, not one generic "revea
 1. **Classes** get a one-time, permanent reveal, flipped by a specific in-fiction trigger (Rogue: first successful lockpick; Bard: first instrument use). This is state that persists, so it's a real field: `revealed: boolean` on each class's progress record.
 2. **Weapon skills, resistances, and spell mastery** have no persisted reveal state at all. They're hidden by HUD policy, full stop — the player sees flavor text at milestone thresholds ("the blade feels natural in your hand"), never a number, until an Identify/appraisal-style spell or item is used, which shows the current numbers for that look (mechanism and exact milestone TBD — earliest plausible home is M2, alongside Truesight's reveal-through-magic theme).
 
-Levels/exp *for the four visible classes* are shown as a bar or number the way HP is; levels/exp for Rogue/Bard stay invisible until revealed the same way the rest of that class's data does.
+Class **level** (a plain number, e.g. "Fighter — Lv 3") is visible for the four starting classes, shown on-demand the way HP is. Class **exp** — progress toward the next level — is *not*: it's hidden by the same HUD-policy rule as weapon skills/resistances/mastery, no bar or number, until a reveal spell/item exists (mechanism/milestone TBD, same family as #2 above). Rogue/Bard stay fully invisible — level, exp, everything — until their reveal trigger fires.
 
 ## Vitals
 

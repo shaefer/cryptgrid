@@ -15,17 +15,7 @@ const STATUS_LABEL: Record<HungerStatus, string> = {
   starving: "Starving",
 };
 
-// Only the four classes visible from the start (docs/STATS.md "Secrecy") —
-// Rogue and Bard never render here until M1/M2 add their reveal triggers.
-const VISIBLE_CLASS_ORDER = ["fighter", "ranger", "wizard", "priest"] as const;
-const CLASS_LABEL: Record<(typeof VISIBLE_CLASS_ORDER)[number], string> = {
-  fighter: "Fighter",
-  ranger: "Ranger",
-  wizard: "Wizard",
-  priest: "Priest",
-};
-
-function createBarRow(container: HTMLElement, label: string): HTMLDivElement {
+function createBarRow(container: HTMLElement, label: string): { fill: HTMLDivElement; track: HTMLDivElement } {
   const row = document.createElement("div");
   row.className = "vital-row";
 
@@ -41,7 +31,7 @@ function createBarRow(container: HTMLElement, label: string): HTMLDivElement {
 
   row.append(labelEl, track);
   container.appendChild(row);
-  return fill;
+  return { fill, track };
 }
 
 function setFill(fill: HTMLDivElement, cur: number, max: number, color: string): void {
@@ -60,29 +50,35 @@ function setHungerFill(fill: HTMLDivElement, bar: HungerThirst): void {
   fill.style.background = `linear-gradient(to right, ${HUNGER_COLOR} 0%, ${HUNGER_COLOR} ${stopPct}%, ${OVERFEED_COLOR} ${stopPct}%, ${OVERFEED_COLOR} 100%)`;
 }
 
-/** Renders the four visible vitals bars, Hunger/Thirst status label, and revealed class levels. */
-export class VitalsHud {
+/** One compact character's worth of bars — the unit that repeats up to 4 times in VitalsHud. */
+class CharacterBlock {
+  readonly root: HTMLElement;
   private readonly hpFill: HTMLDivElement;
   private readonly manaFill: HTMLDivElement;
   private readonly staminaFill: HTMLDivElement;
   private readonly hungerFill: HTMLDivElement;
-  private readonly statusLabel: HTMLDivElement;
-  private readonly classLabel: HTMLDivElement;
+  private readonly hungerStatusEl: HTMLDivElement;
 
-  constructor(container: HTMLElement) {
-    container.innerHTML = "";
-    this.hpFill = createBarRow(container, "HP");
-    this.manaFill = createBarRow(container, "Mana");
-    this.staminaFill = createBarRow(container, "Stamina");
-    this.hungerFill = createBarRow(container, "Hunger");
+  constructor(slotIndex: number) {
+    this.root = document.createElement("div");
+    this.root.className = "vital-block";
 
-    this.statusLabel = document.createElement("div");
-    this.statusLabel.className = "vital-status";
-    container.appendChild(this.statusLabel);
+    const slotLabel = document.createElement("div");
+    slotLabel.className = "vital-slot-label";
+    slotLabel.textContent = String(slotIndex + 1);
+    this.root.appendChild(slotLabel);
 
-    this.classLabel = document.createElement("div");
-    this.classLabel.className = "vital-classes";
-    container.appendChild(this.classLabel);
+    this.hpFill = createBarRow(this.root, "HP").fill;
+    this.manaFill = createBarRow(this.root, "MP").fill;
+    this.staminaFill = createBarRow(this.root, "SP").fill;
+
+    // Status text overlays the hunger bar itself rather than a separate line —
+    // there's no room left once 4 characters share the corner.
+    const { fill, track } = createBarRow(this.root, "Hu");
+    this.hungerFill = fill;
+    this.hungerStatusEl = document.createElement("div");
+    this.hungerStatusEl.className = "vital-hunger-status";
+    track.appendChild(this.hungerStatusEl);
   }
 
   update(character: Character): void {
@@ -90,13 +86,40 @@ export class VitalsHud {
     setFill(this.manaFill, character.mana.cur, character.mana.max, MANA_COLOR);
     setFill(this.staminaFill, character.stamina.cur, character.stamina.max, STAMINA_COLOR);
     setHungerFill(this.hungerFill, character.hungerThirst);
+    this.hungerStatusEl.textContent = STATUS_LABEL[hungerStatus(character.hungerThirst)];
+  }
+}
 
-    this.statusLabel.textContent = STATUS_LABEL[hungerStatus(character.hungerThirst)];
+/**
+ * Renders one compact CharacterBlock per filled party slot (docs/ROADMAP.md
+ * M0.65). Class levels intentionally don't appear here — that detail moved
+ * to the on-demand character sheet (hud/characterSheet.ts) opened with 1-4,
+ * since there wasn't room to show both class levels and four characters'
+ * worth of bars in one corner.
+ */
+export class VitalsHud {
+  private readonly container: HTMLElement;
+  private readonly blocks = new Map<number, CharacterBlock>();
 
-    this.classLabel.textContent = VISIBLE_CLASS_ORDER.filter(
-      (id) => character.classes[id].revealed,
-    )
-      .map((id) => `${CLASS_LABEL[id]} ${character.classes[id].level}`)
-      .join(" · ");
+  constructor(container: HTMLElement) {
+    this.container = container;
+    container.innerHTML = "";
+  }
+
+  update(members: readonly (Character | null)[]): void {
+    members.forEach((member, index) => {
+      if (!member) {
+        this.blocks.get(index)?.root.remove();
+        this.blocks.delete(index);
+        return;
+      }
+      let block = this.blocks.get(index);
+      if (!block) {
+        block = new CharacterBlock(index);
+        this.container.appendChild(block.root);
+        this.blocks.set(index, block);
+      }
+      block.update(member);
+    });
   }
 }

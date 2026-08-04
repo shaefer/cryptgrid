@@ -10,8 +10,10 @@ import {
   type GameState,
   type LevelJSON,
 } from "@cryptgrid/sim";
+import { CharacterSheet } from "./hud/characterSheet";
 import { VitalsHud } from "./hud/vitalsHud";
 import { KeyboardInput } from "./input/keyboard";
+import { SheetController } from "./input/sheetController";
 import { PartyView } from "./render/partyView";
 import { buildLevel } from "./scene/buildLevel";
 import { loadDungeonTextures } from "./scene/textures";
@@ -28,7 +30,10 @@ async function main(): Promise<void> {
   const app = document.getElementById("app");
   const hud = document.getElementById("hud");
   const vitals = document.getElementById("vitals");
-  if (!app || !hud || !vitals) throw new Error("expected #app, #hud, and #vitals in index.html");
+  const characterSheetEl = document.getElementById("character-sheet");
+  if (!app || !hud || !vitals || !characterSheetEl) {
+    throw new Error("expected #app, #hud, #vitals, and #character-sheet in index.html");
+  }
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -74,10 +79,22 @@ async function main(): Promise<void> {
   input.attach(window);
   const vitalsHud = new VitalsHud(vitals);
 
+  const characterSheet = new CharacterSheet(characterSheetEl);
+  const sheetController = new SheetController();
+  sheetController.onChange((slotIndex) => {
+    if (slotIndex === null) {
+      characterSheet.hide();
+    } else {
+      characterSheet.render(slotIndex, state.party.members[slotIndex] ?? null);
+    }
+  });
+  sheetController.attach(window);
+
   const updateHud = (): void => {
     hud.textContent = `${level.name} — (${state.party.x},${state.party.z}) facing ${state.party.facing}   ·   WASD move · QE turn`;
-    const bram = state.party.members[0];
-    if (bram) vitalsHud.update(bram);
+    vitalsHud.update(state.party.members);
+    const openIndex = sheetController.openIndex;
+    if (openIndex !== null) characterSheet.render(openIndex, state.party.members[openIndex] ?? null);
   };
   updateHud();
 
@@ -103,9 +120,11 @@ async function main(): Promise<void> {
 
       // Only pull input when the sim will actually accept it, otherwise the
       // buffered keypress is consumed by a tick that rejects it and the player
-      // sees a dropped step.
+      // sees a dropped step. Movement is also suppressed while a character
+      // sheet is open — menus don't pause a real-time dungeon, but they do
+      // stop you from wandering into a wall while you're not looking.
       commands.length = 0;
-      if (canAct(state)) {
+      if (canAct(state) && !sheetController.isOpen) {
         const command = input.takeCommand();
         if (command) commands.push(command);
       }
