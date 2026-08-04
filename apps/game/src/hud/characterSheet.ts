@@ -1,4 +1,11 @@
-import type { Character } from "@cryptgrid/sim";
+import {
+  getItemType,
+  sharedCarryCapacity,
+  totalWeight,
+  type Character,
+  type ItemInstance,
+  type PartyState,
+} from "@cryptgrid/sim";
 
 // Same four classes as the compact HUD's visibility rule (docs/STATS.md
 // "Secrecy") — Rogue/Bard never appear here until their reveal trigger fires.
@@ -38,17 +45,30 @@ function vitalLine(label: string, cur: number, max: number): HTMLElement {
   return row;
 }
 
+export type ConsumeRequest = (characterId: string, itemId: string) => void;
+
+function describeItem(item: ItemInstance): string {
+  const type = getItemType(item);
+  if (!type) return item.type;
+  const throwable = type.throwable ? " · throwable" : "";
+  return `${type.name} (${type.weight}wt)${throwable}`;
+}
+
 /**
  * On-demand full-panel character sheet, opened by SheetController (1-4 /
  * Esc). Shows attributes and class *levels* — never exp, which stays hidden
- * until a reveal spell/item exists (docs/STATS.md "Secrecy"). Inventory is a
- * placeholder until M0.7 builds items.
+ * until a reveal spell/item exists (docs/STATS.md "Secrecy"). Inventory is
+ * the shared party pool (docs/ROADMAP.md M0.7) — clicking a consumable row
+ * fires CONSUME for whichever character's sheet is open.
  */
 export class CharacterSheet {
   private readonly backdrop: HTMLElement;
   private readonly card: HTMLElement;
 
-  constructor(container: HTMLElement) {
+  constructor(
+    container: HTMLElement,
+    private readonly onConsume: ConsumeRequest,
+  ) {
     this.backdrop = container;
     this.backdrop.classList.add("sheet-backdrop");
     this.backdrop.hidden = true;
@@ -58,9 +78,11 @@ export class CharacterSheet {
     this.backdrop.appendChild(this.card);
   }
 
-  render(slotIndex: number, character: Character | null): void {
+  render(slotIndex: number, party: PartyState): void {
     this.backdrop.hidden = false;
     this.card.innerHTML = "";
+
+    const character = party.members[slotIndex] ?? null;
 
     const header = document.createElement("div");
     header.className = "sheet-header";
@@ -81,22 +103,24 @@ export class CharacterSheet {
       return;
     }
 
-    this.card.appendChild(this.buildVitals(character));
+    this.card.appendChild(this.buildVitals(character, party));
     this.card.appendChild(this.buildAttributes(character));
     this.card.appendChild(this.buildClasses(character));
-    this.card.appendChild(this.buildInventory());
+    this.card.appendChild(this.buildHands(character));
+    this.card.appendChild(this.buildInventory(party, character.id));
   }
 
   hide(): void {
     this.backdrop.hidden = true;
   }
 
-  private buildVitals(character: Character): HTMLElement {
+  private buildVitals(character: Character, party: PartyState): HTMLElement {
     const { root, body } = section("Vitals");
     body.append(
       vitalLine("HP", character.hp.cur, character.hp.max),
       vitalLine("Mana", character.mana.cur, character.mana.max),
       vitalLine("Stamina", character.stamina.cur, character.stamina.max),
+      vitalLine("Carry", totalWeight(party.inventory), sharedCarryCapacity(party.members)),
     );
     return root;
   }
@@ -132,12 +156,45 @@ export class CharacterSheet {
     return root;
   }
 
-  private buildInventory(): HTMLElement {
+  private buildHands(character: Character): HTMLElement {
+    const { root, body } = section("Hands");
+    body.className = "sheet-hands";
+    character.hands.forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "sheet-hand";
+      row.textContent = item ? describeItem(item) : "— empty —";
+      if (item && getItemType(item)?.consumable) {
+        row.classList.add("sheet-inventory-consumable");
+        row.title = "Click to consume";
+        row.addEventListener("click", () => this.onConsume(character.id, item.id));
+      }
+      body.appendChild(row);
+    });
+    return root;
+  }
+
+  private buildInventory(party: PartyState, characterId: string): HTMLElement {
     const { root, body } = section("Inventory");
-    const empty = document.createElement("div");
-    empty.className = "sheet-empty";
-    empty.textContent = "Nothing here yet.";
-    body.appendChild(empty);
+    if (party.inventory.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "sheet-empty";
+      empty.textContent = "Nothing stowed yet.";
+      body.appendChild(empty);
+      return root;
+    }
+
+    for (const item of party.inventory) {
+      const type = getItemType(item);
+      const row = document.createElement("div");
+      row.className = "sheet-inventory-row";
+      row.textContent = describeItem(item);
+      if (type?.consumable) {
+        row.classList.add("sheet-inventory-consumable");
+        row.title = "Click to consume";
+        row.addEventListener("click", () => this.onConsume(characterId, item.id));
+      }
+      body.appendChild(row);
+    }
     return root;
   }
 }

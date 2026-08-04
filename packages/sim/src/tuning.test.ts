@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { ITEM_REGISTRY } from "./items/registry";
+import { createPremadeCharacter } from "./state";
 import {
   CARRY_BASE_CAPACITY,
   CARRY_CAPACITY_PER_STR,
@@ -7,6 +9,8 @@ import {
   expToNextLevel,
   masteryBonus,
   MAX_MASTERY_BONUS,
+  sharedCarryCapacity,
+  totalWeight,
 } from "./tuning";
 
 describe("expToNextLevel", () => {
@@ -45,6 +49,43 @@ describe("decayPerTick", () => {
     expect(decayPerTick("brumal")).toBeLessThan(decayPerTick("standard"));
     expect(decayPerTick("standard")).toBeLessThan(decayPerTick("gluttonous"));
     expect(decayPerTick("gluttonous")).toBeLessThan(decayPerTick("insatiable"));
+  });
+});
+
+describe("totalWeight", () => {
+  it("is zero for an empty list", () => {
+    expect(totalWeight([])).toBe(0);
+  });
+
+  it("sums known item weights", () => {
+    const items = [
+      { id: "a", type: "bread" },
+      { id: "b", type: "waterflask" },
+    ];
+    expect(totalWeight(items)).toBe(ITEM_REGISTRY.bread!.weight + ITEM_REGISTRY.waterflask!.weight);
+  });
+
+  it("treats an unknown item type as zero weight", () => {
+    expect(totalWeight([{ id: "a", type: "not-a-real-item" }])).toBe(0);
+  });
+});
+
+describe("sharedCarryCapacity", () => {
+  it("sums capacity across every filled party slot", () => {
+    const bram = createPremadeCharacter();
+    const other = { ...createPremadeCharacter(), attributes: { ...bram.attributes, str: 10 } };
+    expect(sharedCarryCapacity([bram, other, null, null])).toBe(
+      carryCapacity(bram.attributes.str) + carryCapacity(other.attributes.str),
+    );
+  });
+
+  it("ignores empty slots", () => {
+    const bram = createPremadeCharacter();
+    expect(sharedCarryCapacity([bram, null, null, null])).toBe(carryCapacity(bram.attributes.str));
+  });
+
+  it("is zero for an empty party", () => {
+    expect(sharedCarryCapacity([null, null, null, null])).toBe(0);
   });
 });
 

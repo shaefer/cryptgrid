@@ -12,6 +12,14 @@ export interface Stat {
   max: number;
 }
 
+export interface ItemInstance {
+  id: string;
+  type: string;
+}
+
+/** Two independent hand slots (docs/ROADMAP.md M0.7) — a held item, not yet stowed or equipped. */
+export type Hands = [ItemInstance | null, ItemInstance | null];
+
 export interface Character {
   id: string;
   name: string;
@@ -26,11 +34,7 @@ export interface Character {
   weaponSkills: WeaponSkillMap;
   resistances: ResistanceMap;
   spellMastery: SpellMasteryMap;
-}
-
-export interface ItemInstance {
-  id: string;
-  type: string;
+  hands: Hands;
 }
 
 export interface PartyState {
@@ -73,6 +77,7 @@ export function createPremadeCharacter(): Character {
     weaponSkills: createInitialWeaponSkills(),
     resistances: createInitialResistances(),
     spellMastery: createInitialSpellMastery(),
+    hands: [null, null],
   };
 }
 

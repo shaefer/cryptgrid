@@ -1,15 +1,6 @@
-export type SheetChangeListener = (openSlotIndex: number | null) => void;
+import { DIGIT_CODE_TO_SLOT_INDEX } from "./digitKeys";
 
-const DIGIT_CODE_TO_SLOT_INDEX: Readonly<Record<string, number>> = {
-  Digit1: 0,
-  Digit2: 1,
-  Digit3: 2,
-  Digit4: 3,
-  Numpad1: 0,
-  Numpad2: 1,
-  Numpad3: 2,
-  Numpad4: 3,
-};
+export type SheetChangeListener = (openSlotIndex: number | null) => void;
 
 /**
  * Tracks which party slot's character sheet (if any) is open, driven by keys

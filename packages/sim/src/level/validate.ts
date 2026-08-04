@@ -140,6 +140,7 @@ export function validateLevel(level: LevelJSON): ValidationError[] {
     }
   }
 
+  const seenSlots = new Set<string>();
   for (const item of level.items) {
     claimId(item.id, "items");
     if (!inBounds(item.x, item.z)) {
@@ -159,6 +160,15 @@ export function validateLevel(level: LevelJSON): ValidationError[] {
         message: `item "${item.id}" has unknown type "${item.type}"`,
       });
     }
+
+    const slotKey = `${item.x},${item.z},${item.slot ?? "center"}`;
+    if (seenSlots.has(slotKey)) {
+      errors.push({
+        code: "item-slot-collision",
+        message: `item "${item.id}" collides with another item at (${item.x},${item.z}) slot "${item.slot ?? "center"}"`,
+      });
+    }
+    seenSlots.add(slotKey);
   }
 
   return errors;

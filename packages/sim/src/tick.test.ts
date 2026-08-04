@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { RavenousnessTier } from "./character/vitals";
 import type { Facing } from "./facing";
 import { parseLevel } from "./level/parse";
-import type { LevelJSON } from "./level/types";
+import type { LevelItem, LevelJSON } from "./level/types";
 import { createInitialState, type Character, type GameState } from "./state";
 import { ACTION_COOLDOWN_TICKS, canAct, tick } from "./tick";
 import { decayPerTick, HP_DRAIN_PER_TICK_BY_STATUS } from "./tuning";
@@ -194,6 +194,10 @@ function withHunger(
   });
 }
 
+function withLevelItems(state: GameState, items: LevelItem[]): GameState {
+  return { ...state, level: { ...state.level, items } };
+}
+
 describe("tick — vitals", () => {
   let state: GameState;
 
@@ -279,5 +283,216 @@ describe("tick — vitals", () => {
     const before = bram(state).hp.cur;
     const after = bram(tick(state, []).state).hp.cur;
     expect(after).toBeLessThan(before);
+  });
+});
+
+describe("tick — PICKUP", () => {
+  let state: GameState;
+
+  beforeEach(() => {
+    state = createInitialState(parseLevel(roomLevel()), 1);
+  });
+
+  it("moves a floor item into an empty hand and removes it from the level", () => {
+    state = withLevelItems(state, [{ id: "itm_1", type: "bread", x: 1, z: 1 }]);
+    const result = tick(state, [{ type: "PICKUP", characterId: "bram", itemId: "itm_1" }]);
+
+    const character = bram(result.state);
+    expect(character.hands[0]).toEqual({ id: "itm_1", type: "bread" });
+    expect(character.hands[1]).toBeNull();
+    expect(result.state.level.items).toEqual([]);
+    expect(result.events).toEqual([
+      { type: "ItemPickedUp", characterId: "bram", itemId: "itm_1", hand: 0 },
+    ]);
+  });
+
+  it("fills the second hand when the first is already occupied", () => {
+    state = withLevelItems(state, [{ id: "itm_2", type: "torch", x: 1, z: 1 }]);
+    state = withCharacter(state, { hands: [{ id: "itm_held", type: "shortsword" }, null] });
+
+    const result = tick(state, [{ type: "PICKUP", characterId: "bram", itemId: "itm_2" }]);
+    const character = bram(result.state);
+    expect(character.hands[0]).toEqual({ id: "itm_held", type: "shortsword" });
+    expect(character.hands[1]).toEqual({ id: "itm_2", type: "torch" });
+    expect(result.events).toEqual([
+      { type: "ItemPickedUp", characterId: "bram", itemId: "itm_2", hand: 1 },
+    ]);
+  });
+
+  it("rejects pickup when both hands are full, leaving the item on the floor", () => {
+    state = withLevelItems(state, [{ id: "itm_3", type: "torch", x: 1, z: 1 }]);
+    state = withCharacter(state, {
+      hands: [
+        { id: "h0", type: "shortsword" },
+        { id: "h1", type: "scroll" },
+      ],
+    });
+
+    const result = tick(state, [{ type: "PICKUP", characterId: "bram", itemId: "itm_3" }]);
+    expect(result.events).toEqual([
+      { type: "PickupRejected", characterId: "bram", itemId: "itm_3", reason: "hands-full" },
+    ]);
+    expect(result.state.level.items).toHaveLength(1);
+  });
+
+  it("rejects pickup when the item isn't on the party's tile", () => {
+    state = withLevelItems(state, [{ id: "itm_4", type: "torch", x: 3, z: 1 }]); // party is at (1,1)
+    const result = tick(state, [{ type: "PICKUP", characterId: "bram", itemId: "itm_4" }]);
+    expect(result.events).toEqual([
+      { type: "PickupRejected", characterId: "bram", itemId: "itm_4", reason: "not-here" },
+    ]);
+  });
+
+  it("respects the movement cooldown, same gate as MOVE/TURN", () => {
+    state = withLevelItems(state, [
+      { id: "itm_5", type: "torch", x: 1, z: 1 },
+      { id: "itm_6", type: "torch", x: 1, z: 1, slot: "ne" },
+    ]);
+    const first = tick(state, [{ type: "PICKUP", characterId: "bram", itemId: "itm_5" }]);
+    const second = tick(first.state, [{ type: "PICKUP", characterId: "bram", itemId: "itm_6" }]);
+
+    // Still on cooldown from the first pickup — second is silently rejected.
+    expect(second.events).toEqual([]);
+    expect(bram(second.state).hands[1]).toBeNull();
+  });
+});
+
+describe("tick — STOW", () => {
+  let state: GameState;
+
+  beforeEach(() => {
+    state = createInitialState(parseLevel(roomLevel()), 1);
+  });
+
+  it("moves a held item into the shared inventory", () => {
+    state = withCharacter(state, { hands: [{ id: "itm_1", type: "bread" }, null] });
+    const result = tick(state, [{ type: "STOW", characterId: "bram", hand: 0 }]);
+
+    expect(bram(result.state).hands[0]).toBeNull();
+    expect(result.state.party.inventory).toEqual([{ id: "itm_1", type: "bread" }]);
+    expect(result.events).toEqual([
+      { type: "ItemStowed", characterId: "bram", itemId: "itm_1", hand: 0 },
+    ]);
+  });
+
+  it("has no cooldown — works immediately after a move used up the shared gate", () => {
+    state = withCharacter(state, { hands: [{ id: "itm_1", type: "bread" }, null] });
+    const moved = tick(state, [{ type: "MOVE", dir: "forward" }]).state;
+
+    const result = tick(moved, [{ type: "STOW", characterId: "bram", hand: 0 }]);
+    expect(bram(result.state).hands[0]).toBeNull();
+    expect(result.events).toEqual([
+      { type: "ItemStowed", characterId: "bram", itemId: "itm_1", hand: 0 },
+    ]);
+  });
+
+  it("no-ops on an empty hand", () => {
+    const result = tick(state, [{ type: "STOW", characterId: "bram", hand: 0 }]);
+    expect(result.events).toEqual([]);
+    expect(result.state.party.inventory).toEqual([]);
+  });
+
+  it("rejects stowing once the summed carry capacity would be exceeded", () => {
+    // Bram's capacity is carryCapacity(str=8) = 20 + 8*2 = 36. Six shortswords
+    // (weight 6 each) already sit exactly at capacity; one more tips it over.
+    const heavyInventory = Array.from({ length: 6 }, (_, i) => ({
+      id: `sword_${i}`,
+      type: "shortsword",
+    }));
+    state = { ...state, party: { ...state.party, inventory: heavyInventory } };
+    state = withCharacter(state, { hands: [{ id: "one_more", type: "shortsword" }, null] });
+
+    const result = tick(state, [{ type: "STOW", characterId: "bram", hand: 0 }]);
+    expect(result.events).toEqual([
+      { type: "StowRejected", characterId: "bram", itemId: "one_more", reason: "over-capacity" },
+    ]);
+    expect(bram(result.state).hands[0]).toEqual({ id: "one_more", type: "shortsword" });
+    expect(result.state.party.inventory).toHaveLength(6);
+  });
+});
+
+describe("tick — CONSUME", () => {
+  let state: GameState;
+
+  beforeEach(() => {
+    state = createInitialState(parseLevel(roomLevel()), 1);
+  });
+
+  // Every tick() call — including one that only carries a CONSUME command —
+  // also runs the unconditional per-tick vitals pass (decay + status-driven
+  // regen), so exact-equality math here would need to replicate that pass to
+  // stay correct. Bounded assertions capture the real intent (the bonus is
+  // genuinely applied, on top of at most a hair of same-tick decay/regen)
+  // without re-implementing tick.ts's formulas inside the test.
+
+  it("consumes a held food item: restores Hunger/Thirst and applies its HP bonus", () => {
+    state = withHunger(state, 50);
+    state = withCharacter(state, { hp: { cur: 10, max: 20 } });
+    state = withCharacter(state, { hands: [{ id: "itm_bread", type: "bread" }, null] });
+
+    const before = bram(state);
+    const result = tick(state, [{ type: "CONSUME", characterId: "bram", itemId: "itm_bread" }]);
+    const after = bram(result.state);
+
+    // +30 from the item, minus at most one tick's worth of decay.
+    expect(after.hungerThirst.cur).toBeGreaterThan(before.hungerThirst.cur + 29.9);
+    expect(after.hungerThirst.cur).toBeLessThanOrEqual(before.hungerThirst.cur + 30);
+    // +2 from the bonus, plus at most one tick's worth of regen.
+    expect(after.hp.cur).toBeGreaterThanOrEqual(before.hp.cur + 2);
+    expect(after.hp.cur).toBeLessThan(before.hp.cur + 2.1);
+    expect(after.hands[0]).toBeNull();
+    expect(result.events).toEqual([{ type: "ItemConsumed", characterId: "bram", itemId: "itm_bread" }]);
+  });
+
+  it("consumes a food/water item from the shared inventory when it isn't held", () => {
+    state = withHunger(state, 50);
+    state = withCharacter(state, { stamina: { cur: 5, max: 15 } });
+    state = { ...state, party: { ...state.party, inventory: [{ id: "itm_flask", type: "waterflask" }] } };
+
+    const before = bram(state);
+    const result = tick(state, [{ type: "CONSUME", characterId: "bram", itemId: "itm_flask" }]);
+    const after = bram(result.state);
+
+    expect(after.hungerThirst.cur).toBeGreaterThan(before.hungerThirst.cur + 29.9);
+    expect(after.hungerThirst.cur).toBeLessThanOrEqual(before.hungerThirst.cur + 30);
+    expect(after.stamina.cur).toBeGreaterThanOrEqual(before.stamina.cur + 3);
+    expect(after.stamina.cur).toBeLessThan(before.stamina.cur + 3.1);
+    expect(result.state.party.inventory).toEqual([]);
+    expect(result.events).toEqual([{ type: "ItemConsumed", characterId: "bram", itemId: "itm_flask" }]);
+  });
+
+  it("never lets Hunger/Thirst exceed overfeedMax", () => {
+    state = withHunger(state, 140); // + bread's 30 would be 170 without clamping
+    state = withCharacter(state, { hands: [{ id: "itm_bread", type: "bread" }, null] });
+
+    const overfeedMax = bram(state).hungerThirst.overfeedMax;
+    const result = tick(state, [{ type: "CONSUME", characterId: "bram", itemId: "itm_bread" }]);
+    expect(bram(result.state).hungerThirst.cur).toBeLessThanOrEqual(overfeedMax);
+    expect(bram(result.state).hungerThirst.cur).toBeGreaterThan(overfeedMax - 1);
+  });
+
+  it("rejects consuming a non-consumable item", () => {
+    state = withCharacter(state, { hands: [{ id: "itm_sword", type: "shortsword" }, null] });
+    const result = tick(state, [{ type: "CONSUME", characterId: "bram", itemId: "itm_sword" }]);
+
+    expect(result.events).toEqual([
+      { type: "ConsumeRejected", characterId: "bram", itemId: "itm_sword", reason: "not-consumable" },
+    ]);
+    expect(bram(result.state).hands[0]).toEqual({ id: "itm_sword", type: "shortsword" });
+  });
+
+  it("rejects consuming an item that isn't held or in the shared inventory", () => {
+    const result = tick(state, [{ type: "CONSUME", characterId: "bram", itemId: "does-not-exist" }]);
+    expect(result.events).toEqual([
+      { type: "ConsumeRejected", characterId: "bram", itemId: "does-not-exist", reason: "not-found" },
+    ]);
+  });
+
+  it("has no cooldown — works immediately after a move used up the shared gate", () => {
+    state = withCharacter(state, { hands: [{ id: "itm_bread", type: "bread" }, null] });
+    const moved = tick(state, [{ type: "MOVE", dir: "forward" }]).state;
+
+    const result = tick(moved, [{ type: "CONSUME", characterId: "bram", itemId: "itm_bread" }]);
+    expect(result.events).toEqual([{ type: "ItemConsumed", characterId: "bram", itemId: "itm_bread" }]);
   });
 });

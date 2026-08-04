@@ -59,11 +59,16 @@ export interface InscriptionFeature extends WallFeatureBase {
 
 export type WallFeature = SwitchFeature | LeverFeature | AlcoveFeature | InscriptionFeature;
 
+/** Sub-tile position within a floor cell — up to 5 items can share one tile, one per slot. */
+export type ItemSlot = "center" | "ne" | "se" | "nw" | "sw";
+
 export interface LevelItem {
   id: string;
   type: string;
   x: number;
   z: number;
+  /** Omitted = "center". */
+  slot?: ItemSlot;
 }
 
 export interface LevelJSON {

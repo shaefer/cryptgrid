@@ -11,6 +11,8 @@
 
 import type { RavenousnessTier } from "./character/vitals";
 import { TICKS_PER_SECOND } from "./constants";
+import { ITEM_REGISTRY } from "./items/registry";
+import type { Character, ItemInstance } from "./state";
 
 // --- Class leveling (docs/STATS.md "Classes & leveling") ---
 
@@ -51,6 +53,18 @@ export const CARRY_CAPACITY_PER_STR = 2;
 /** Abstract weight units — defined per-item by a weight field added in M0.7. */
 export function carryCapacity(str: number): number {
   return CARRY_BASE_CAPACITY + str * CARRY_CAPACITY_PER_STR;
+}
+
+export function totalWeight(items: readonly ItemInstance[]): number {
+  return items.reduce((sum, item) => sum + (ITEM_REGISTRY[item.type]?.weight ?? 0), 0);
+}
+
+/** The shared party inventory's capacity is the sum across every filled slot — no single member "owns" the pack. */
+export function sharedCarryCapacity(members: readonly (Character | null)[]): number {
+  return members.reduce(
+    (sum, member) => sum + (member ? carryCapacity(member.attributes.str) : 0),
+    0,
+  );
 }
 
 // --- Hunger/Thirst decay (docs/STATS.md "Ravenousness") ---

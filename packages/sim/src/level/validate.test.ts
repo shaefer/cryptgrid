@@ -100,4 +100,19 @@ describe("validateLevel", () => {
     const errors = validateLevel(level);
     expect(errors.some((e) => e.code === "unknown-item-type")).toBe(true);
   });
+
+  it("catches two items sharing the same tile and slot", () => {
+    const level = baseLevel();
+    // it1 is already at (1,2) with no slot (defaults to "center").
+    level.items.push({ id: "it2", type: "torch", x: 1, z: 2 });
+    const errors = validateLevel(level);
+    expect(errors.some((e) => e.code === "item-slot-collision")).toBe(true);
+  });
+
+  it("allows two items on the same tile in different slots", () => {
+    const level = baseLevel();
+    level.items.push({ id: "it2", type: "torch", x: 1, z: 2, slot: "ne" });
+    const errors = validateLevel(level);
+    expect(errors.some((e) => e.code === "item-slot-collision")).toBe(false);
+  });
 });

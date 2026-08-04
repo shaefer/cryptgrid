@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "build": "pnpm -r build",
     "smoke": "pnpm --filter @cryptgrid/game test:e2e",
-    "gen:textures": "node tools/gen-textures/generate.mjs"
+    "gen:textures": "node tools/gen-textures/generate.mjs",
+    "gen:items": "node tools/gen-items/generate.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",

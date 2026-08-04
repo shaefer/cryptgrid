@@ -6,6 +6,7 @@ The level JSON is the shared contract between `apps/editor`, `apps/game`, `packa
 
 - Grid coordinates: `x` = column (east positive), `z` = row (south positive). `(0,0)` is the northwest corner. Maps directly onto Three.js x/z; world position = `(x*3+1.5, _, z*3+1.5)`.
 - Facing: `"N" | "E" | "S" | "W"`. North = −z. Wall **faces** are named by the direction the face's *normal* points into the cell that sees it: a feature on the south wall of a corridor cell is attached to that cell with `face: "S"`.
+- Floor items sit at one of 5 sub-tile positions (`center`, or a quadrant — see `items[].slot` below), offset ±0.75 world units (`tileSize/4`) from the tile's center along both axes.
 
 ## Schema (v1)
 
@@ -42,14 +43,20 @@ The level JSON is the shared contract between `apps/editor`, `apps/game`, `packa
       "targets": ["door_hall"], "action": "toggle" },
     { "id": "alc_1", "x": 6, "z": 3, "face": "S", "type": "alcove",
       "items": ["itm_torch_1"] },
+    // "hidden": true alcoves render as plain wall (no tell of their own —
+    // only switches get one) until a switch/lever targeting their id fires.
+    { "id": "alc_hidden1", "x": 10, "z": 7, "face": "N", "type": "alcove",
+      "hidden": true, "items": ["itm_scroll_2"] },
     { "id": "txt_1", "x": 2, "z": 1, "face": "N", "type": "inscription",
       "text": "The vault keeps what the vault is given." }
   ],
 
   // Items lying on floor tiles (alcove items live in the feature above).
+  // "slot" is optional: "center" | "ne" | "se" | "nw" | "sw" — omitted = center.
+  // Up to 5 items can share one tile, one per slot.
   "items": [
     { "id": "itm_sword_1", "type": "shortsword", "x": 4, "z": 2 },
-    { "id": "itm_bread_1", "type": "bread", "x": 6, "z": 6 },
+    { "id": "itm_bread_1", "type": "bread", "x": 6, "z": 6, "slot": "ne" },
     { "id": "itm_flask_1", "type": "waterflask", "x": 6, "z": 7 }
   ],
 
@@ -61,7 +68,7 @@ The level JSON is the shared contract between `apps/editor`, `apps/game`, `packa
 
 ## Item type registry
 
-Item *types* (display name, sprite, stackable, consumable effects, equip slot) live in code: `packages/sim/src/items/registry.ts`. Levels reference types by string key. M0 registry: `shortsword`, `torch`, `bread` (+food), `waterflask` (+water), `ironkey` (unlocks — M1), `scroll` (flavor).
+Item *types* (display name, sprite, stackable, weight, throwable, consumable effects, equip slot) live in code: `packages/sim/src/items/registry.ts`. `weight` (required, abstract units — see STATS.md "Carrying capacity") and `throwable` (optional; whether a held copy can eventually be thrown — M0.7 only sets the flag, throwing itself is a later milestone) join the existing fields starting M0.7. Levels reference types by string key. M0 registry: `shortsword`, `torch`, `bread` (+food), `waterflask` (+water), `ironkey` (unlocks — M1), `scroll` (flavor).
 
 ## Runtime state vs. authored data
 
@@ -69,7 +76,7 @@ The sim parses authored JSON into `LevelRuntime`: cells become a typed grid; doo
 
 ## Validation
 
-`packages/sim/src/level/validate.ts` — loadable from editor, game, and tests: rectangular `cells` matching width/height; `start` on floor; doors on `D`/`S` cells and vice versa; features attached to a wall that exists (the referenced face must border a wall or door cell); unique ids; `targets` resolve; items on floor cells. Editor runs this on export and shows errors inline.
+`packages/sim/src/level/validate.ts` — loadable from editor, game, and tests: rectangular `cells` matching width/height; `start` on floor; doors on `D`/`S` cells and vice versa; features attached to a wall that exists (the referenced face must border a wall or door cell); unique ids; `targets` resolve (against door ids **or**, starting M0.8, alcove feature ids — a switch can reveal a hidden alcove the same way it opens a secret door); items on floor cells; starting M0.7, no two items may share the same `(x, z, slot)` — slot defaults to `"center"` when omitted, so this also catches two centerless items stacked on one tile. Editor runs this on export and shows errors inline.
 
 # EDITOR SPEC (apps/editor)
 

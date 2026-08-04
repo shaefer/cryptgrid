@@ -38,7 +38,8 @@
       "text": "Kor Ign Dart drives back the dark." }
   ],
   "items": [
-    { "id": "itm_sword_1", "type": "shortsword", "x": 3, "z": 1 },
+    { "id": "itm_sword_1", "type": "shortsword", "x": 3, "z": 1, "slot": "sw" },
+    { "id": "itm_bread_start", "type": "bread", "x": 3, "z": 1, "slot": "se" },
     { "id": "itm_bread_1", "type": "bread", "x": 6, "z": 7 },
     { "id": "itm_flask_1", "type": "waterflask", "x": 13, "z": 7 },
     { "id": "itm_scroll_1", "type": "scroll", "x": 8, "z": 2 }

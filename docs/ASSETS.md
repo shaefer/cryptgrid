@@ -21,14 +21,20 @@ Technique per texture — layered and cheap but effective:
 
 | File | Notes |
 |---|---|
-| `wall_stone.png` | Default wall. Large blocks, cool grey `#5a5f66` range |
-| `wall_stone_secretbrick.png` | Same, one brick subtly proud/offset + hairline shadow — the secret switch tell. Subtle! Find-able at torchlight, not billboard-obvious |
-| `wall_alcove_back.png` | Darker recessed variant |
+| `wall_stone.png` | Default wall (ashlar — fine cut blocks). Large blocks, cool grey `#5a5f66` range |
+| `wall_stone_secretbrick.png` | Same, one brick subtly proud/offset + hairline shadow — the secret switch tell. Subtle! Find-able at torchlight, not billboard-obvious. Generated since M0.3, unused until M0.8 |
+| `wall_fieldstone.png` | 2nd wall type — irregular, organic block variation (M0.8) |
+| `wall_fieldstone_secretbrick.png` | `wall_fieldstone`'s own secret tell — never reuse `wall_stone`'s (M0.8) |
+| `wall_hewn.png` | 3rd wall type — rough-hewn, darker, heavier grunge/cracks (M0.8) |
+| `wall_hewn_secretbrick.png` | `wall_hewn`'s own secret tell (M0.8) |
+| `wall_alcove_back.png` | Darker recessed variant. Generated since M0.3, unused until M0.8 |
 | `floor_stone.png` | Smaller flagstones, slightly warmer, heavier grime |
 | `ceiling_stone.png` | Rough-hewn, darkest of the set |
 | `door_portcullis.png` | Iron bars on transparent background |
 | `door_secret.png` | = wall_stone with faint seam cross |
-| `feature_lever.png`, `feature_switch.png` | Wall-mounted, transparent bg, on/off frames |
+| `feature_lever.png`, `feature_switch.png` | Wall-mounted, transparent bg, on/off frames. Required since M0.3, actually generated in M0.8 |
+
+Every M0.8 wall type gets its **own** `_secretbrick` pairing (docs/ROADMAP.md M0.8) — a secret switch always blends with whichever stone actually surrounds it, so three wall types means three independent tells, not one tell reused across three backgrounds.
 
 Palette: stone `#4a4e55–#6b7078`, mortar `#2e3136`, warm torch grime `#5c4a3a` accents, iron `#3a3d42`. Fog/background `#0d0e12`.
 

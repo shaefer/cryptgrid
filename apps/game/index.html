@@ -39,6 +39,13 @@
       }
       .vital-block {
         margin-bottom: 8px;
+        padding: 3px 4px;
+        border-radius: 3px;
+        border: 1px solid transparent;
+      }
+      .vital-block-active {
+        border-color: #c9a24a;
+        background: rgba(201, 162, 74, 0.08);
       }
       .vital-slot-label {
         font-size: 10px;
@@ -167,6 +174,29 @@
         font-size: 12px;
         opacity: 0.5;
         font-style: italic;
+      }
+      .sheet-hands {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+      }
+      .sheet-hand {
+        font-size: 13px;
+        background: #1a1b1f;
+        border: 1px solid #2e3136;
+        border-radius: 3px;
+        padding: 4px 8px;
+      }
+      .sheet-inventory-row {
+        font-size: 13px;
+        margin-bottom: 3px;
+      }
+      .sheet-inventory-consumable {
+        cursor: pointer;
+        color: #c9a24a;
+      }
+      .sheet-inventory-consumable:hover {
+        text-decoration: underline;
       }
     </style>
   </head>

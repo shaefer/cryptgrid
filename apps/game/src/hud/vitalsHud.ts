@@ -106,7 +106,8 @@ export class VitalsHud {
     container.innerHTML = "";
   }
 
-  update(members: readonly (Character | null)[]): void {
+  /** activeIndex is whose hands PICKUP/STOW currently act through (input/activeCharacterController.ts). */
+  update(members: readonly (Character | null)[], activeIndex: number): void {
     members.forEach((member, index) => {
       if (!member) {
         this.blocks.get(index)?.root.remove();
@@ -120,6 +121,7 @@ export class VitalsHud {
         this.blocks.set(index, block);
       }
       block.update(member);
+      block.root.classList.toggle("vital-block-active", index === activeIndex);
     });
   }
 }

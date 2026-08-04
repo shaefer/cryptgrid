@@ -56,6 +56,24 @@ export function fillRect(png, x0, y0, w, h, r, g, b, a = 255) {
   }
 }
 
+export function fillEllipse(png, cx, cy, rx, ry, r, g, b, a = 255) {
+  const x0 = Math.floor(cx - rx);
+  const x1 = Math.ceil(cx + rx);
+  const y0 = Math.floor(cy - ry);
+  const y1 = Math.ceil(cy + ry);
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const nx = (x - cx) / rx;
+      const ny = (y - cy) / ry;
+      if (nx * nx + ny * ny <= 1) setPixel(png, x, y, r, g, b, a);
+    }
+  }
+}
+
+export function fillCircle(png, cx, cy, radius, r, g, b, a = 255) {
+  fillEllipse(png, cx, cy, radius, radius, r, g, b, a);
+}
+
 /** Fills a rect, wrapping horizontally past the right edge — keeps brick tiling seamless. */
 export function fillRectWrapX(png, x0, w, y0, h, r, g, b, a = 255) {
   const size = png.width;

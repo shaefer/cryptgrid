@@ -12,10 +12,14 @@ import {
 } from "@cryptgrid/sim";
 import { CharacterSheet } from "./hud/characterSheet";
 import { VitalsHud } from "./hud/vitalsHud";
+import { ActiveCharacterController } from "./input/activeCharacterController";
+import { InteractionInput } from "./input/interactionInput";
 import { KeyboardInput } from "./input/keyboard";
 import { SheetController } from "./input/sheetController";
 import { PartyView } from "./render/partyView";
 import { buildLevel } from "./scene/buildLevel";
+import { ItemSprites } from "./scene/items";
+import { loadItemTextures } from "./scene/itemTextures";
 import { loadDungeonTextures } from "./scene/textures";
 import { TORCH_BASE_INTENSITY, TORCH_FLICKER } from "./tuning";
 
@@ -53,11 +57,12 @@ async function main(): Promise<void> {
   camera.add(torch);
 
   // BASE_URL keeps these working both at "/" in dev and "/cryptgrid/" on Pages.
-  const [levelJson, textures] = await Promise.all([
+  const [levelJson, textures, itemTextures] = await Promise.all([
     fetch(`${import.meta.env.BASE_URL}levels/vault01.json`).then(
       (res) => res.json() as Promise<LevelJSON>,
     ),
     loadDungeonTextures(),
+    loadItemTextures(),
   ]);
 
   const errors = validateLevel(levelJson);
@@ -74,29 +79,48 @@ async function main(): Promise<void> {
   let state: GameState = createInitialState(level, 1, { devDecayMultiplier });
   buildLevel(scene, level, textures);
 
+  const itemSprites = new ItemSprites(scene, itemTextures);
+  itemSprites.update(state.level.items);
+
   const partyView = new PartyView(camera, state.party);
   const input = new KeyboardInput();
   input.attach(window);
   const vitalsHud = new VitalsHud(vitals);
 
-  const characterSheet = new CharacterSheet(characterSheetEl);
+  const activeCharacter = new ActiveCharacterController();
+  activeCharacter.attach(window);
+
+  let consumeCommand: Command | null = null;
+  const characterSheet = new CharacterSheet(characterSheetEl, (characterId, itemId) => {
+    consumeCommand = { type: "CONSUME", characterId, itemId };
+  });
   const sheetController = new SheetController();
   sheetController.onChange((slotIndex) => {
     if (slotIndex === null) {
       characterSheet.hide();
     } else {
-      characterSheet.render(slotIndex, state.party.members[slotIndex] ?? null);
+      characterSheet.render(slotIndex, state.party);
     }
   });
   sheetController.attach(window);
 
+  const interactionInput = new InteractionInput({
+    camera,
+    canvas: renderer.domElement,
+    itemSprites,
+    getState: () => state,
+    getActiveCharacterId: () => state.party.members[activeCharacter.active]?.id ?? null,
+  });
+  interactionInput.attach(window);
+
   const updateHud = (): void => {
-    hud.textContent = `${level.name} — (${state.party.x},${state.party.z}) facing ${state.party.facing}   ·   WASD move · QE turn`;
-    vitalsHud.update(state.party.members);
+    hud.textContent = `${level.name} — (${state.party.x},${state.party.z}) facing ${state.party.facing}   ·   WASD move · QE turn · click/F pick up · right-click stow`;
+    vitalsHud.update(state.party.members, activeCharacter.active);
     const openIndex = sheetController.openIndex;
-    if (openIndex !== null) characterSheet.render(openIndex, state.party.members[openIndex] ?? null);
+    if (openIndex !== null) characterSheet.render(openIndex, state.party);
   };
   updateHud();
+  activeCharacter.onChange(updateHud);
 
   window.addEventListener("resize", () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -123,10 +147,20 @@ async function main(): Promise<void> {
       // sees a dropped step. Movement is also suppressed while a character
       // sheet is open — menus don't pause a real-time dungeon, but they do
       // stop you from wandering into a wall while you're not looking.
+      // PICKUP shares that same move-cooldown gate; STOW and CONSUME don't,
+      // since neither is a physical action in the dungeon, just bookkeeping.
       commands.length = 0;
       if (canAct(state) && !sheetController.isOpen) {
         const command = input.takeCommand();
         if (command) commands.push(command);
+        const pickup = interactionInput.takeGatedCommand();
+        if (pickup) commands.push(pickup);
+      }
+      const stow = interactionInput.takeUngatedCommand();
+      if (stow) commands.push(stow);
+      if (consumeCommand) {
+        commands.push(consumeCommand);
+        consumeCommand = null;
       }
 
       const result = tick(state, commands);
@@ -135,6 +169,7 @@ async function main(): Promise<void> {
         partyView.handleEvent(event, nowMs);
       }
     }
+    if (ticksThisFrame > 0) itemSprites.update(state.level.items);
     if (ticksThisFrame === MAX_TICKS_PER_FRAME) accumulator = 0; // drop the backlog
     // Vitals decay every tick regardless of events, so the HUD refreshes
     // whenever the sim actually advanced, not just on movement.
