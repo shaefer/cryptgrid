@@ -13,7 +13,7 @@
     "typecheck": "pnpm -r --parallel typecheck",
     "lint": "eslint .",
     "build": "pnpm -r build",
-    "smoke": "echo \"Playwright smoke test lands in M0.5\" && exit 1",
+    "smoke": "pnpm --filter @cryptgrid/game test:e2e",
     "gen:textures": "node tools/gen-textures/generate.mjs"
   },
   "devDependencies": {
