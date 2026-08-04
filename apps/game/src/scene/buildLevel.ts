@@ -1,5 +1,11 @@
 import * as THREE from "three";
-import { cellCharAt as simCellCharAt, type LevelRuntime } from "@cryptgrid/sim";
+import {
+  cellCharAt as simCellCharAt,
+  findDoorAt,
+  wallVariantIndex,
+  type Facing,
+  type LevelRuntime,
+} from "@cryptgrid/sim";
 import type { DungeonTextures } from "./textures";
 
 export const TILE_SIZE = 3;
@@ -22,64 +28,124 @@ function isSolid(ch: string): boolean {
   return ch === "#" || ch === "X" || ch === "D" || ch === "S";
 }
 
-interface FaceInstance {
+/** One wall-boundary face: where it sits, how it's turned, and which wall cell owns it. */
+export interface BoundaryFace {
   position: THREE.Vector3;
   rotationY: number;
+  wallCellX: number;
+  wallCellZ: number;
+}
+
+/**
+ * The non-instanced leftovers of a build — boundary faces that something else
+ * animates or swaps at runtime, handed to DoorViews / FeatureViews instead of
+ * being baked into the static instanced meshes.
+ */
+export interface BuildResult {
+  /** Every face of each door cell, keyed by door id — the unit that slides. */
+  doorFaces: Map<string, BoundaryFace[]>;
+  /** The face a secret switch or alcove occupies, keyed by feature id. */
+  featureFaces: Map<string, BoundaryFace>;
 }
 
 // Each entry: neighbor offset + the Y rotation that turns a default (normal +Z)
 // plane into a quad facing back into the floor cell from that boundary.
-const WALL_NEIGHBORS: { dx: number; dz: number; rotationY: number }[] = [
-  { dx: 0, dz: -1, rotationY: 0 }, // north boundary
-  { dx: 0, dz: 1, rotationY: Math.PI }, // south boundary
-  { dx: 1, dz: 0, rotationY: -Math.PI / 2 }, // east boundary
-  { dx: -1, dz: 0, rotationY: Math.PI / 2 }, // west boundary
+const WALL_NEIGHBORS: { dx: number; dz: number; rotationY: number; face: Facing }[] = [
+  { dx: 0, dz: -1, rotationY: 0, face: "N" }, // north boundary
+  { dx: 0, dz: 1, rotationY: Math.PI, face: "S" }, // south boundary
+  { dx: 1, dz: 0, rotationY: -Math.PI / 2, face: "E" }, // east boundary
+  { dx: -1, dz: 0, rotationY: Math.PI / 2, face: "W" }, // west boundary
 ];
 
 /**
  * Builds instanced wall-face, floor, and ceiling meshes from level data —
- * geometry from data, nothing hand-placed (ARCHITECTURE.md). Closed doors
- * (portcullis/secret) render as solid boundary faces for now; the sliding
- * open/close animation arrives with the interaction system in M0.8.
+ * geometry from data, nothing hand-placed (ARCHITECTURE.md). Wall texture
+ * variant is picked per wall *cell* via the sim's stable hash, so every face
+ * of one physical stone block agrees and the same level always renders
+ * identically (ROADMAP.md M0.8). Door faces and secret-switch/alcove faces
+ * are returned, not baked in — DoorViews slides the former, FeatureViews
+ * dresses and swaps the latter.
  */
-export function buildLevel(scene: THREE.Scene, level: LevelRuntime, textures: DungeonTextures): void {
-  const wallFaces: FaceInstance[] = [];
-  const portcullisFaces: FaceInstance[] = [];
-  const secretFaces: FaceInstance[] = [];
+export function buildLevel(
+  scene: THREE.Scene,
+  level: LevelRuntime,
+  textures: DungeonTextures,
+): BuildResult {
+  const variantFaces: BoundaryFace[][] = textures.wallVariants.map(() => []);
+  const doorFaces = new Map<string, BoundaryFace[]>();
+  const featureFaces = new Map<string, BoundaryFace>();
   const floorCells: { x: number; z: number }[] = [];
+
+  // Boundaries claimed by a secret switch or an alcove, keyed "x,z,face" of
+  // the emitting floor cell — these skip the instanced meshes entirely.
+  const claimed = new Map<string, string>();
+  for (const feature of level.wallFeatures) {
+    const isSecretSwitch = feature.type === "switch" && feature.variant === "secretBrick";
+    if (isSecretSwitch || feature.type === "alcove") {
+      claimed.set(`${feature.x},${feature.z},${feature.face}`, feature.id);
+    }
+  }
 
   for (let z = 0; z < level.height; z++) {
     for (let x = 0; x < level.width; x++) {
-      if (cellCharAt(level, x, z) !== ".") continue;
+      const cell = cellCharAt(level, x, z);
+      const isDoorCell = cell === "D" || cell === "S";
+      // Door cells are walkable tunnels once open — they need floor, ceiling,
+      // and side walls of their own, or an opened door reveals unrendered void
+      // (found via Playwright screenshot the first time a door actually slid).
+      if (cell !== "." && !isDoorCell) continue;
       floorCells.push({ x, z });
 
       const cx = worldX(x);
       const cz = worldZ(z);
-      for (const { dx, dz, rotationY } of WALL_NEIGHBORS) {
-        const neighbor = cellCharAt(level, x + dx, z + dz);
+      for (const { dx, dz, rotationY, face } of WALL_NEIGHBORS) {
+        const nx = x + dx;
+        const nz = z + dz;
+        const neighbor = cellCharAt(level, nx, nz);
         if (!isSolid(neighbor)) continue;
+        // From inside a door tunnel, only true walls get faces — the door
+        // planes at the floor-cell boundaries are DoorViews' job.
+        if (isDoorCell && (neighbor === "D" || neighbor === "S")) continue;
 
-        const position = new THREE.Vector3(
-          cx + (dx * TILE_SIZE) / 2,
-          WALL_HEIGHT / 2,
-          cz + (dz * TILE_SIZE) / 2,
-        );
-        const face: FaceInstance = { position, rotationY };
-        const bucket = neighbor === "D" ? portcullisFaces : neighbor === "S" ? secretFaces : wallFaces;
-        bucket.push(face);
+        const boundary: BoundaryFace = {
+          position: new THREE.Vector3(cx + (dx * TILE_SIZE) / 2, WALL_HEIGHT / 2, cz + (dz * TILE_SIZE) / 2),
+          rotationY,
+          wallCellX: nx,
+          wallCellZ: nz,
+        };
+
+        if (!isDoorCell && (neighbor === "D" || neighbor === "S")) {
+          const door = findDoorAt(level, nx, nz);
+          if (door) {
+            const faces = doorFaces.get(door.id) ?? [];
+            faces.push(boundary);
+            doorFaces.set(door.id, faces);
+            continue;
+          }
+        }
+
+        const featureId = claimed.get(`${x},${z},${face}`);
+        if (featureId) {
+          featureFaces.set(featureId, boundary);
+          continue;
+        }
+
+        variantFaces[wallVariantIndex(nx, nz, textures.wallVariants.length)]?.push(boundary);
       }
     }
   }
 
-  addFaceMesh(scene, wallFaces, textures.wall, false);
-  addFaceMesh(scene, portcullisFaces, textures.doorPortcullis, true);
-  addFaceMesh(scene, secretFaces, textures.doorSecret, false);
+  textures.wallVariants.forEach((variant, i) => {
+    addFaceMesh(scene, variantFaces[i] ?? [], variant.base, false);
+  });
   addFloorAndCeiling(scene, floorCells, textures);
+
+  return { doorFaces, featureFaces };
 }
 
 function addFaceMesh(
   scene: THREE.Scene,
-  faces: FaceInstance[],
+  faces: BoundaryFace[],
   texture: THREE.Texture,
   transparent: boolean,
 ): void {

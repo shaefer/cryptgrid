@@ -496,3 +496,185 @@ describe("tick — CONSUME", () => {
     expect(result.events).toEqual([{ type: "ItemConsumed", characterId: "bram", itemId: "itm_bread" }]);
   });
 });
+
+// Same room as roomLevel, dressed with every M0.8 feature kind: a lever wired
+// to the door, a switch wired to a hidden alcove, a visible alcove, and an
+// inscription (the not-interactive case).
+function interactLevel(): LevelJSON {
+  return {
+    ...roomLevel(),
+    wallFeatures: [
+      { id: "lev1", x: 1, z: 1, face: "W", type: "lever", targets: ["d1"], action: "toggle" },
+      { id: "sw1", x: 3, z: 1, face: "E", type: "switch", variant: "secretBrick", targets: ["alc_h"], action: "toggle" },
+      { id: "alc_h", x: 1, z: 2, face: "W", type: "alcove", hidden: true, items: [{ id: "itm_key", type: "ironkey" }] },
+      { id: "alc_v", x: 3, z: 2, face: "E", type: "alcove", items: [{ id: "itm_scr", type: "scroll" }] },
+      { id: "txt1", x: 1, z: 1, face: "N", type: "inscription", text: "The vault remembers." },
+    ],
+  };
+}
+
+describe("tick — INTERACT", () => {
+  let state: GameState;
+
+  beforeEach(() => {
+    state = createInitialState(parseLevel(interactLevel()), 1);
+  });
+
+  it("lever toggles its door open, then closed again on a second pull", () => {
+    // Party starts at (1,1) — the lever's own cell.
+    const opened = tick(state, [{ type: "INTERACT", characterId: "bram", targetId: "lev1" }]);
+    expect(opened.events).toEqual([
+      { type: "SwitchActivated", characterId: "bram", featureId: "lev1" },
+      { type: "DoorOpened", doorId: "d1" },
+    ]);
+    expect(opened.state.level.doors[0]?.open).toBe(true);
+
+    const ready = advance(opened.state, ACTION_COOLDOWN_TICKS);
+    const closed = tick(ready, [{ type: "INTERACT", characterId: "bram", targetId: "lev1" }]);
+    expect(closed.events).toEqual([
+      { type: "SwitchActivated", characterId: "bram", featureId: "lev1" },
+      { type: "DoorClosed", doorId: "d1" },
+    ]);
+    expect(closed.state.level.doors[0]?.open).toBe(false);
+  });
+
+  it("opens the way end-to-end: bump the closed door, pull the lever, walk through", () => {
+    // Face the door from (2,1) — it's closed, so MOVE bumps.
+    state = { ...state, party: { ...state.party, x: 2, z: 1, facing: "S" } };
+    const bumped = tick(state, [{ type: "MOVE", dir: "forward" }]);
+    expect(bumped.events).toEqual([{ type: "PartyBumped", x: 2, z: 2, facing: "S" }]);
+
+    // Walk back to the lever's cell and pull it.
+    let s = advance(bumped.state, ACTION_COOLDOWN_TICKS);
+    s = { ...s, party: { ...s.party, x: 1, z: 1 } };
+    const pulled = tick(s, [{ type: "INTERACT", characterId: "bram", targetId: "lev1" }]);
+    expect(pulled.state.level.doors[0]?.open).toBe(true);
+
+    // Now the same MOVE that bumped goes through.
+    s = advance(pulled.state, ACTION_COOLDOWN_TICKS);
+    s = { ...s, party: { ...s.party, x: 2, z: 1 } };
+    const through = tick(s, [{ type: "MOVE", dir: "forward" }]);
+    expect(through.events).toEqual([{ type: "PartyMoved", x: 2, z: 2, facing: "S" }]);
+  });
+
+  it("switch reveals its hidden alcove exactly once", () => {
+    state = { ...state, party: { ...state.party, x: 3, z: 1 } };
+    const revealed = tick(state, [{ type: "INTERACT", characterId: "bram", targetId: "sw1" }]);
+    expect(revealed.events).toEqual([
+      { type: "SwitchActivated", characterId: "bram", featureId: "sw1" },
+      { type: "AlcoveRevealed", alcoveId: "alc_h" },
+    ]);
+    const alcove = revealed.state.level.wallFeatures.find((f) => f.id === "alc_h");
+    expect(alcove?.type === "alcove" && alcove.hidden).toBe(false);
+
+    // Reveals are one-way — a second press activates but reveals nothing new.
+    const ready = advance(revealed.state, ACTION_COOLDOWN_TICKS);
+    const again = tick(ready, [{ type: "INTERACT", characterId: "bram", targetId: "sw1" }]);
+    expect(again.events).toEqual([
+      { type: "SwitchActivated", characterId: "bram", featureId: "sw1" },
+    ]);
+  });
+
+  it("rejects interacting with a feature from the wrong cell", () => {
+    // Party at (1,1); sw1 lives at (3,1).
+    const result = tick(state, [{ type: "INTERACT", characterId: "bram", targetId: "sw1" }]);
+    expect(result.events).toEqual([
+      { type: "InteractRejected", characterId: "bram", targetId: "sw1", reason: "not-here" },
+    ]);
+  });
+
+  it("rejects interacting with an inscription", () => {
+    const result = tick(state, [{ type: "INTERACT", characterId: "bram", targetId: "txt1" }]);
+    expect(result.events).toEqual([
+      { type: "InteractRejected", characterId: "bram", targetId: "txt1", reason: "not-interactive" },
+    ]);
+  });
+
+  it("shares the move cooldown — a second INTERACT in the cooldown window is dropped", () => {
+    const first = tick(state, [{ type: "INTERACT", characterId: "bram", targetId: "lev1" }]);
+    const second = tick(first.state, [{ type: "INTERACT", characterId: "bram", targetId: "lev1" }]);
+    expect(second.events).toEqual([]);
+    expect(second.state.level.doors[0]?.open).toBe(true); // still open — second pull never fired
+  });
+});
+
+describe("tick — alcove take/place", () => {
+  let state: GameState;
+
+  beforeEach(() => {
+    state = createInitialState(parseLevel(interactLevel()), 1);
+  });
+
+  it("PICKUP takes an item out of a visible alcove into an empty hand", () => {
+    state = { ...state, party: { ...state.party, x: 3, z: 2 } };
+    const result = tick(state, [{ type: "PICKUP", characterId: "bram", itemId: "itm_scr" }]);
+
+    expect(bram(result.state).hands[0]).toEqual({ id: "itm_scr", type: "scroll" });
+    const alcove = result.state.level.wallFeatures.find((f) => f.id === "alc_v");
+    expect(alcove?.type === "alcove" && alcove.items).toEqual([]);
+    expect(result.events).toEqual([
+      { type: "ItemPickedUp", characterId: "bram", itemId: "itm_scr", hand: 0 },
+    ]);
+  });
+
+  it("cannot take from a hidden alcove until a switch reveals it", () => {
+    state = { ...state, party: { ...state.party, x: 1, z: 2 } };
+    const before = tick(state, [{ type: "PICKUP", characterId: "bram", itemId: "itm_key" }]);
+    expect(before.events).toEqual([
+      { type: "PickupRejected", characterId: "bram", itemId: "itm_key", reason: "not-here" },
+    ]);
+
+    // Reveal it via sw1, then the same PICKUP succeeds.
+    let s = advance(before.state, ACTION_COOLDOWN_TICKS);
+    s = { ...s, party: { ...s.party, x: 3, z: 1 } };
+    const revealed = tick(s, [{ type: "INTERACT", characterId: "bram", targetId: "sw1" }]);
+    s = advance(revealed.state, ACTION_COOLDOWN_TICKS);
+    s = { ...s, party: { ...s.party, x: 1, z: 2 } };
+    const after = tick(s, [{ type: "PICKUP", characterId: "bram", itemId: "itm_key" }]);
+    expect(bram(after.state).hands[0]).toEqual({ id: "itm_key", type: "ironkey" });
+  });
+
+  it("ALCOVE_PLACE moves a held item onto a reachable alcove's shelf", () => {
+    state = { ...state, party: { ...state.party, x: 3, z: 2 } };
+    state = withCharacter(state, { hands: [{ id: "itm_bread", type: "bread" }, null] });
+    const result = tick(state, [
+      { type: "ALCOVE_PLACE", characterId: "bram", hand: 0, alcoveId: "alc_v" },
+    ]);
+
+    expect(bram(result.state).hands[0]).toBeNull();
+    const alcove = result.state.level.wallFeatures.find((f) => f.id === "alc_v");
+    expect(alcove?.type === "alcove" && alcove.items).toEqual([
+      { id: "itm_scr", type: "scroll" },
+      { id: "itm_bread", type: "bread" },
+    ]);
+    expect(result.events).toEqual([
+      { type: "ItemPlacedInAlcove", characterId: "bram", alcoveId: "alc_v", itemId: "itm_bread" },
+    ]);
+  });
+
+  it("take/place round-trips: what you take, you can put back", () => {
+    state = { ...state, party: { ...state.party, x: 3, z: 2 } };
+    const taken = tick(state, [{ type: "PICKUP", characterId: "bram", itemId: "itm_scr" }]);
+    const ready = advance(taken.state, ACTION_COOLDOWN_TICKS);
+    const placed = tick(ready, [
+      { type: "ALCOVE_PLACE", characterId: "bram", hand: 0, alcoveId: "alc_v" },
+    ]);
+
+    expect(bram(placed.state).hands[0]).toBeNull();
+    const alcove = placed.state.level.wallFeatures.find((f) => f.id === "alc_v");
+    expect(alcove?.type === "alcove" && alcove.items).toEqual([{ id: "itm_scr", type: "scroll" }]);
+  });
+
+  it("rejects placing into an alcove the party can't reach", () => {
+    // Party at (1,1); alc_v lives at (3,2).
+    state = withCharacter(state, { hands: [{ id: "itm_bread", type: "bread" }, null] });
+    const result = tick(state, [
+      { type: "ALCOVE_PLACE", characterId: "bram", hand: 0, alcoveId: "alc_v" },
+    ]);
+
+    expect(bram(result.state).hands[0]).toEqual({ id: "itm_bread", type: "bread" });
+    expect(result.events).toEqual([
+      { type: "PlaceRejected", characterId: "bram", alcoveId: "alc_v", reason: "not-here" },
+    ]);
+  });
+});

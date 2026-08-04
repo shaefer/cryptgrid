@@ -1,42 +1,47 @@
-import type * as THREE from "three";
+import * as THREE from "three";
 import type { Command, GameState, HandIndex } from "@cryptgrid/sim";
-import type { ItemSprites } from "../scene/items";
+
+interface RayHit {
+  kind: string;
+  id: string;
+}
 
 export interface InteractionContext {
   camera: THREE.Camera;
   canvas: HTMLElement;
-  itemSprites: ItemSprites;
+  /** Roots to raycast (recursively) — item sprites, feature meshes, alcove niches. */
+  raycastRoots: THREE.Object3D[];
   getState: () => GameState;
   getActiveCharacterId: () => string | null;
+  /** Inscriptions are client-side flavor — no sim round-trip, just show the text. */
+  onInscription: (featureId: string) => void;
 }
 
 /**
  * Mouse + F-key world interaction (docs/GAME_DESIGN.md: "Mouse raycast click
  * ... is the universal 'touch' verb; F interacts with whatever is centered
- * ahead."). Left-click/F resolve to PICKUP; right-click resolves to STOW
- * against the active character's own held item — no target, since stowing
- * acts on what you're already holding, not on the world. PICKUP shares the
- * move cooldown gate (buffered depth-1, mirrors KeyboardInput); STOW has no
- * cooldown, so it's applied on the very next tick regardless of canAct().
+ * ahead."). One raycast resolves what was touched, and the hit's entityKind
+ * decides the verb: floor/alcove items -> PICKUP, switches/levers -> INTERACT,
+ * an alcove niche while holding something -> ALCOVE_PLACE, inscriptions ->
+ * client-side text. Right-click stays STOW against the active character's own
+ * held item — no target, since stowing acts on what you already hold.
  *
- * PICKUP only ever resolves against an item on the party's own tile (the
- * sim's same-tile check) — and an item sitting at your own feet is ~1.2
- * world units below eye level at only ~0.75 forward, which falls below the
- * camera's frustum at CAMERA_PITCH_DEG=12 (see apps/game/src/tuning.ts) and
- * so is never raycast-hittable in practice. Tile lookup is therefore the
- * primary resolution path; the raycast is kept as a fallback for whatever's
- * actually centered in view (a future-proofing hook, e.g. multi-tile rooms).
+ * PICKUP/INTERACT/ALCOVE_PLACE share the move cooldown gate (buffered
+ * depth-1, mirrors KeyboardInput); STOW has no cooldown. An item on the
+ * party's own tile sits below the camera frustum at CAMERA_PITCH_DEG=12 and
+ * is never raycast-hittable, so a miss falls back to tile lookup.
  */
 export class InteractionInput {
   private bufferedGated: Command | null = null;
   private bufferedUngated: Command | null = null;
   private attached = false;
+  private readonly raycaster = new THREE.Raycaster();
 
   constructor(private readonly ctx: InteractionContext) {}
 
   private readonly onMouseDown = (event: MouseEvent): void => {
     if (event.button === 0) {
-      this.tryPickup(this.ndcFromEvent(event));
+      this.tryTouch(this.ndcFromEvent(event));
     } else if (event.button === 2) {
       event.preventDefault();
       this.tryStow();
@@ -50,7 +55,7 @@ export class InteractionInput {
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (event.code !== "KeyF") return;
     event.preventDefault();
-    this.tryPickup({ x: 0, y: 0 }); // center-screen crosshair ray
+    this.tryTouch({ x: 0, y: 0 }); // center-screen crosshair ray
   };
 
   private ndcFromEvent(event: MouseEvent): { x: number; y: number } {
@@ -61,13 +66,50 @@ export class InteractionInput {
     };
   }
 
-  private tryPickup(ndc: { x: number; y: number }): void {
+  private raycast(ndc: { x: number; y: number }): RayHit | null {
+    this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.ctx.camera);
+    const hits = this.raycaster.intersectObjects(this.ctx.raycastRoots, true);
+    for (const hit of hits) {
+      const id = hit.object.userData.entityId as string | undefined;
+      const kind = hit.object.userData.entityKind as string | undefined;
+      if (id && kind) return { kind, id };
+    }
+    return null;
+  }
+
+  private tryTouch(ndc: { x: number; y: number }): void {
     const characterId = this.ctx.getActiveCharacterId();
     if (!characterId) return;
-    const itemId =
-      this.itemOnCurrentTile() ?? this.ctx.itemSprites.raycast(this.ctx.camera, ndc.x, ndc.y);
-    if (!itemId) return;
-    this.bufferedGated = { type: "PICKUP", characterId, itemId };
+
+    const hit = this.raycast(ndc);
+    if (!hit) {
+      // Nothing in view — maybe there's an item underfoot (below the frustum).
+      const itemId = this.itemOnCurrentTile();
+      if (itemId) this.bufferedGated = { type: "PICKUP", characterId, itemId };
+      return;
+    }
+
+    switch (hit.kind) {
+      case "item":
+      case "alcove-item":
+        this.bufferedGated = { type: "PICKUP", characterId, itemId: hit.id };
+        return;
+      case "interact":
+        this.bufferedGated = { type: "INTERACT", characterId, targetId: hit.id };
+        return;
+      case "alcove": {
+        const hand = this.firstHeldHand(characterId);
+        if (hand !== null) {
+          this.bufferedGated = { type: "ALCOVE_PLACE", characterId, hand, alcoveId: hit.id };
+        }
+        return;
+      }
+      case "inscription":
+        this.ctx.onInscription(hit.id);
+        return;
+      default:
+        return; // doors and other tagged-but-passive geometry
+    }
   }
 
   private itemOnCurrentTile(): string | null {
@@ -76,17 +118,22 @@ export class InteractionInput {
     return item?.id ?? null;
   }
 
+  private firstHeldHand(characterId: string): HandIndex | null {
+    const character = this.ctx.getState().party.members.find((m) => m?.id === characterId);
+    if (!character) return null;
+    const index = character.hands.findIndex((hand) => hand !== null);
+    return index === -1 ? null : (index as HandIndex);
+  }
+
   private tryStow(): void {
     const characterId = this.ctx.getActiveCharacterId();
     if (!characterId) return;
-    const character = this.ctx.getState().party.members.find((member) => member?.id === characterId);
-    if (!character) return;
-    const handIndex = character.hands.findIndex((hand) => hand !== null);
-    if (handIndex === -1) return; // both hands empty — nothing to stow
-    this.bufferedUngated = { type: "STOW", characterId, hand: handIndex as HandIndex };
+    const hand = this.firstHeldHand(characterId);
+    if (hand === null) return; // both hands empty — nothing to stow
+    this.bufferedUngated = { type: "STOW", characterId, hand };
   }
 
-  /** PICKUP, buffered until the sim will actually accept it. */
+  /** PICKUP/INTERACT/ALCOVE_PLACE, buffered until the sim will actually accept one. */
   takeGatedCommand(): Command | null {
     const command = this.bufferedGated;
     this.bufferedGated = null;

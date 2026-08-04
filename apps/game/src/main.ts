@@ -18,6 +18,8 @@ import { KeyboardInput } from "./input/keyboard";
 import { SheetController } from "./input/sheetController";
 import { PartyView } from "./render/partyView";
 import { buildLevel } from "./scene/buildLevel";
+import { DoorViews } from "./scene/doors";
+import { FeatureViews } from "./scene/features";
 import { ItemSprites } from "./scene/items";
 import { loadItemTextures } from "./scene/itemTextures";
 import { loadDungeonTextures } from "./scene/textures";
@@ -77,7 +79,10 @@ async function main(): Promise<void> {
 
   const level = parseLevel(levelJson);
   let state: GameState = createInitialState(level, 1, { devDecayMultiplier });
-  buildLevel(scene, level, textures);
+  const built = buildLevel(scene, level, textures);
+  const doorViews = new DoorViews(scene, level, textures, built.doorFaces);
+  const featureViews = new FeatureViews(scene, level, textures, itemTextures, built.featureFaces);
+  featureViews.update(state.level);
 
   const itemSprites = new ItemSprites(scene, itemTextures);
   itemSprites.update(state.level.items);
@@ -104,12 +109,31 @@ async function main(): Promise<void> {
   });
   sheetController.attach(window);
 
+  // Inscription text is client-side flavor — a transient toast, no sim round-trip.
+  const toast = document.createElement("div");
+  toast.id = "toast";
+  toast.hidden = true;
+  document.body.appendChild(toast);
+  let toastTimer: ReturnType<typeof setTimeout> | undefined;
+  const showToast = (text: string): void => {
+    toast.textContent = text;
+    toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.hidden = true;
+    }, 4000);
+  };
+
   const interactionInput = new InteractionInput({
     camera,
     canvas: renderer.domElement,
-    itemSprites,
+    raycastRoots: [itemSprites.group, featureViews.interactiveGroup],
     getState: () => state,
     getActiveCharacterId: () => state.party.members[activeCharacter.active]?.id ?? null,
+    onInscription: (featureId) => {
+      const feature = state.level.wallFeatures.find((f) => f.id === featureId);
+      if (feature?.type === "inscription") showToast(`“${feature.text}”`);
+    },
   });
   interactionInput.attach(window);
 
@@ -167,15 +191,21 @@ async function main(): Promise<void> {
       state = result.state;
       for (const event of result.events) {
         partyView.handleEvent(event, nowMs);
+        doorViews.handleEvent(event, nowMs);
+        featureViews.handleEvent(event);
       }
     }
-    if (ticksThisFrame > 0) itemSprites.update(state.level.items);
+    if (ticksThisFrame > 0) {
+      itemSprites.update(state.level.items);
+      featureViews.update(state.level);
+    }
     if (ticksThisFrame === MAX_TICKS_PER_FRAME) accumulator = 0; // drop the backlog
     // Vitals decay every tick regardless of events, so the HUD refreshes
     // whenever the sim actually advanced, not just on movement.
     if (ticksThisFrame > 0) updateHud();
 
     partyView.update(nowMs);
+    doorViews.update(nowMs);
 
     const seconds = nowMs / 1000;
     let intensity = TORCH_BASE_INTENSITY;

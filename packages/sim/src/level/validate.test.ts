@@ -94,6 +94,32 @@ describe("validateLevel", () => {
     expect(errors.some((e) => e.code === "target-unresolved")).toBe(true);
   });
 
+  it("accepts a switch targeting an alcove id — even one defined after the switch", () => {
+    const level = baseLevel();
+    level.wallFeatures.push(
+      {
+        id: "sw1",
+        x: 3,
+        z: 1,
+        face: "N",
+        type: "switch",
+        targets: ["alc1"],
+        action: "toggle",
+      },
+      {
+        id: "alc1",
+        x: 1,
+        z: 1,
+        face: "W",
+        type: "alcove",
+        hidden: true,
+        items: [],
+      },
+    );
+    const errors = validateLevel(level);
+    expect(errors.some((e) => e.code === "target-unresolved")).toBe(false);
+  });
+
   it("catches an item with an unknown type", () => {
     const level = baseLevel();
     level.items[0]!.type = "unobtainium";

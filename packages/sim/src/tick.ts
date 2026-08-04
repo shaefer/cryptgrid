@@ -3,7 +3,8 @@ import type { Command, HandIndex, MoveDir, TurnDir } from "./commands";
 import type { SimEvent } from "./events";
 import { FACING_DELTA, type Facing, opposite, turnLeft, turnRight } from "./facing";
 import { getItemType } from "./items/registry";
-import { findItemById, isWalkable } from "./level/query";
+import { alcovesAt, findDoorById, findFeatureById, findItemById, isWalkable } from "./level/query";
+import type { AlcoveFeature, SwitchAction } from "./level/types";
 import type { Character, GameState, Hands, PartyState, Stat } from "./state";
 import {
   decayPerTick,
@@ -49,6 +50,10 @@ function resolveCommand(state: GameState, command: Command): TickResult {
       return resolveStow(state, command.characterId, command.hand);
     case "CONSUME":
       return resolveConsume(state, command.characterId, command.itemId);
+    case "INTERACT":
+      return resolveInteract(state, command.characterId, command.targetId);
+    case "ALCOVE_PLACE":
+      return resolveAlcovePlace(state, command.characterId, command.hand, command.alcoveId);
   }
 }
 
@@ -136,9 +141,11 @@ function resolveTurn(state: GameState, dir: TurnDir): TickResult {
 }
 
 /**
- * Floor item -> an empty hand. Reuses the party's move cooldown, same as
- * MOVE/TURN (docs/ROADMAP.md M0.7) — physically reaching for something in a
- * real-time dungeon isn't free, unlike STOW's pure inventory bookkeeping.
+ * Floor or alcove item -> an empty hand. Reuses the party's move cooldown,
+ * same as MOVE/TURN (docs/ROADMAP.md M0.7) — physically reaching for
+ * something in a real-time dungeon isn't free, unlike STOW's pure inventory
+ * bookkeeping. Alcove items are reachable only from the alcove's own floor
+ * cell, and never from a still-hidden alcove (docs/ROADMAP.md M0.8).
  */
 function resolvePickup(state: GameState, characterId: string, itemId: string): TickResult {
   const { party } = state;
@@ -152,8 +159,13 @@ function resolvePickup(state: GameState, characterId: string, itemId: string): T
   if (!character) return { state: cooledDown, events: [] };
 
   // Never trust the client's raycast target — re-resolve and validate independently.
-  const item = findItemById(state.level, itemId);
-  if (!item || item.x !== party.x || item.z !== party.z) {
+  const floorItem = findItemById(state.level, itemId);
+  const onTile = floorItem && floorItem.x === party.x && floorItem.z === party.z;
+  const alcove = onTile
+    ? undefined
+    : alcovesAt(state.level, party.x, party.z).find((a) => a.items.some((i) => i.id === itemId));
+
+  if (!onTile && !alcove) {
     return {
       state: cooledDown,
       events: [{ type: "PickupRejected", characterId, itemId, reason: "not-here" }],
@@ -168,16 +180,148 @@ function resolvePickup(state: GameState, characterId: string, itemId: string): T
     };
   }
 
+  const taken = onTile ? floorItem : alcove?.items.find((i) => i.id === itemId);
+  if (!taken) return { state: cooledDown, events: [] }; // unreachable; narrows types
+
   const hands = [...character.hands] as Hands;
-  hands[emptyHandIndex] = { id: item.id, type: item.type };
+  hands[emptyHandIndex] = { id: taken.id, type: taken.type };
+  const updated = withMemberAt(cooledDown, memberIndex, { ...character, hands });
+
+  const level = onTile
+    ? { ...state.level, items: state.level.items.filter((i) => i.id !== itemId) }
+    : {
+        ...state.level,
+        wallFeatures: state.level.wallFeatures.map((f) =>
+          f.id === alcove?.id && f.type === "alcove"
+            ? { ...f, items: f.items.filter((i) => i.id !== itemId) }
+            : f,
+        ),
+      };
+
+  return {
+    state: { ...updated, level },
+    events: [{ type: "ItemPickedUp", characterId, itemId, hand: emptyHandIndex as HandIndex }],
+  };
+}
+
+/**
+ * Switch/lever activation (docs/ROADMAP.md M0.8). Cooldown-gated like
+ * MOVE/PICKUP. The party must be standing in the feature's own floor cell;
+ * the resolver walks the feature's authored targets[]/action to flip door
+ * open-state and reveal hidden alcoves, emitting an event per actual change.
+ */
+function resolveInteract(state: GameState, characterId: string, targetId: string): TickResult {
+  const { party } = state;
+  if (state.tick < party.moveCooldownUntil) {
+    return { state, events: [] };
+  }
+
+  const cooledDown = withParty(state, { moveCooldownUntil: state.tick + ACTION_COOLDOWN_TICKS });
+  const feature = findFeatureById(state.level, targetId);
+
+  if (!feature || feature.x !== party.x || feature.z !== party.z) {
+    return {
+      state: cooledDown,
+      events: [{ type: "InteractRejected", characterId, targetId, reason: "not-here" }],
+    };
+  }
+  if (feature.type !== "switch" && feature.type !== "lever") {
+    return {
+      state: cooledDown,
+      events: [{ type: "InteractRejected", characterId, targetId, reason: "not-interactive" }],
+    };
+  }
+
+  const events: SimEvent[] = [{ type: "SwitchActivated", characterId, featureId: feature.id }];
+  let doors = state.level.doors;
+  let wallFeatures = state.level.wallFeatures;
+
+  for (const id of feature.targets) {
+    const door = findDoorById(state.level, id);
+    if (door) {
+      const nextOpen = applySwitchAction(door.open, feature.action);
+      if (nextOpen !== door.open) {
+        doors = doors.map((d) => (d.id === id ? { ...d, open: nextOpen } : d));
+        events.push(nextOpen ? { type: "DoorOpened", doorId: id } : { type: "DoorClosed", doorId: id });
+      }
+      continue;
+    }
+    const target = findFeatureById(state.level, id);
+    if (target?.type === "alcove" && target.hidden) {
+      // Reveals are one-way: no switch action re-hides an alcove.
+      wallFeatures = wallFeatures.map((f) =>
+        f.id === id && f.type === "alcove" ? { ...f, hidden: false } : f,
+      );
+      events.push({ type: "AlcoveRevealed", alcoveId: id });
+    }
+  }
+
+  return {
+    state: { ...cooledDown, level: { ...state.level, doors, wallFeatures } },
+    events,
+  };
+}
+
+function applySwitchAction(open: boolean, action: SwitchAction): boolean {
+  switch (action) {
+    case "toggle":
+      return !open;
+    case "open":
+      return true;
+    case "close":
+      return false;
+  }
+}
+
+/**
+ * Held item -> a reachable alcove's shelf (the "place" half of take/place —
+ * "take" is PICKUP). Cooldown-gated like PICKUP: physically setting something
+ * into a niche, not inventory bookkeeping.
+ */
+function resolveAlcovePlace(
+  state: GameState,
+  characterId: string,
+  hand: HandIndex,
+  alcoveId: string,
+): TickResult {
+  const { party } = state;
+  if (state.tick < party.moveCooldownUntil) {
+    return { state, events: [] };
+  }
+
+  const cooledDown = withParty(state, { moveCooldownUntil: state.tick + ACTION_COOLDOWN_TICKS });
+  const memberIndex = findMemberIndex(party, characterId);
+  const character = memberIndex === -1 ? null : party.members[memberIndex];
+  if (!character) return { state: cooledDown, events: [] };
+
+  const held = character.hands[hand];
+  if (!held) return { state: cooledDown, events: [] }; // empty hand — nothing to place
+
+  const alcove = alcovesAt(state.level, party.x, party.z).find(
+    (a): a is AlcoveFeature => a.id === alcoveId,
+  );
+  if (!alcove) {
+    return {
+      state: cooledDown,
+      events: [{ type: "PlaceRejected", characterId, alcoveId, reason: "not-here" }],
+    };
+  }
+
+  const hands = [...character.hands] as Hands;
+  hands[hand] = null;
   const updated = withMemberAt(cooledDown, memberIndex, { ...character, hands });
 
   return {
     state: {
       ...updated,
-      level: { ...state.level, items: state.level.items.filter((i) => i.id !== itemId) },
+      level: {
+        ...state.level,
+        wallFeatures: state.level.wallFeatures.map((f) =>
+          f.id === alcoveId && f.type === "alcove" ? { ...f, items: [...f.items, held] } : f,
+        ),
+      },
     },
-    events: [{ type: "ItemPickedUp", characterId, itemId, hand: emptyHandIndex as HandIndex }],
+    events: [{ type: "ItemPlacedInAlcove", characterId, alcoveId, itemId: held.id }],
   };
 }
 

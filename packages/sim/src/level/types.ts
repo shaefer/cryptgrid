@@ -50,6 +50,12 @@ export interface AlcoveFeature extends WallFeatureBase {
   // {id, type} rather than bare id strings: LEVELS.md's ["itm_torch_1"] example
   // doesn't say where the type comes from, so items stay self-contained here.
   items: AlcoveItem[];
+  /**
+   * Renders as plain wall (no tell of its own — only switches get one) until a
+   * switch/lever targeting this id fires AlcoveRevealed. Omitted/false =
+   * always-visible. Flipped to false in runtime state on reveal.
+   */
+  hidden?: boolean;
 }
 
 export interface InscriptionFeature extends WallFeatureBase {

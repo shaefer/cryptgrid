@@ -1,4 +1,12 @@
-import type { CellChar, ItemSlot, LevelDoor, LevelItem, LevelRuntime } from "./types";
+import type {
+  AlcoveFeature,
+  CellChar,
+  ItemSlot,
+  LevelDoor,
+  LevelItem,
+  LevelRuntime,
+  WallFeature,
+} from "./types";
 
 export function cellCharAt(level: LevelRuntime, x: number, z: number): CellChar | undefined {
   if (x < 0 || z < 0 || x >= level.width || z >= level.height) return undefined;
@@ -28,4 +36,28 @@ export function findItemAt(
 
 export function findItemById(level: LevelRuntime, id: string): LevelItem | undefined {
   return level.items.find((item) => item.id === id);
+}
+
+export function findDoorById(level: LevelRuntime, id: string): LevelDoor | undefined {
+  return level.doors.find((door) => door.id === id);
+}
+
+export function findFeatureById(level: LevelRuntime, id: string): WallFeature | undefined {
+  return level.wallFeatures.find((feature) => feature.id === id);
+}
+
+/** Every alcove reachable from the floor cell (x, z) — hidden ones excluded unless includeHidden. */
+export function alcovesAt(
+  level: LevelRuntime,
+  x: number,
+  z: number,
+  includeHidden = false,
+): AlcoveFeature[] {
+  return level.wallFeatures.filter(
+    (feature): feature is AlcoveFeature =>
+      feature.type === "alcove" &&
+      feature.x === x &&
+      feature.z === z &&
+      (includeHidden || !feature.hidden),
+  );
 }

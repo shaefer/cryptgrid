@@ -10,4 +10,11 @@ export type SimEvent =
   | { type: "ItemStowed"; characterId: string; itemId: string; hand: HandIndex }
   | { type: "StowRejected"; characterId: string; itemId: string; reason: "over-capacity" }
   | { type: "ItemConsumed"; characterId: string; itemId: string }
-  | { type: "ConsumeRejected"; characterId: string; itemId: string; reason: "not-found" | "not-consumable" };
+  | { type: "ConsumeRejected"; characterId: string; itemId: string; reason: "not-found" | "not-consumable" }
+  | { type: "SwitchActivated"; characterId: string; featureId: string }
+  | { type: "InteractRejected"; characterId: string; targetId: string; reason: "not-here" | "not-interactive" }
+  | { type: "DoorOpened"; doorId: string }
+  | { type: "DoorClosed"; doorId: string }
+  | { type: "AlcoveRevealed"; alcoveId: string }
+  | { type: "ItemPlacedInAlcove"; characterId: string; alcoveId: string; itemId: string }
+  | { type: "PlaceRejected"; characterId: string; alcoveId: string; reason: "not-here" };

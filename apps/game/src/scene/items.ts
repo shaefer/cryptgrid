@@ -26,9 +26,9 @@ const SLOT_OFFSET: Record<ItemSlot, { dx: number; dz: number }> = {
  * InteractionInput can resolve a click or center-screen ray to an item id.
  */
 export class ItemSprites {
-  private readonly group = new THREE.Group();
+  /** Raycast against `.children` — every sprite carries entityId + entityKind "item". */
+  readonly group = new THREE.Group();
   private readonly sprites = new Map<string, THREE.Sprite>();
-  private readonly raycaster = new THREE.Raycaster();
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -58,13 +58,6 @@ export class ItemSprites {
     }
   }
 
-  /** Casts a ray from normalized device coords and returns the hit item's id, if any. */
-  raycast(camera: THREE.Camera, ndcX: number, ndcY: number): string | null {
-    this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-    const hit = this.raycaster.intersectObjects(this.group.children, false)[0];
-    return (hit?.object.userData.entityId as string | undefined) ?? null;
-  }
-
   private createSprite(item: LevelItem): THREE.Sprite {
     const material = new THREE.SpriteMaterial({
       map: this.textures[item.type] ?? null,
@@ -73,6 +66,7 @@ export class ItemSprites {
     const sprite = new THREE.Sprite(material);
     sprite.scale.set(SPRITE_SIZE, SPRITE_SIZE, 1);
     sprite.userData.entityId = item.id;
+    sprite.userData.entityKind = "item";
     return sprite;
   }
 

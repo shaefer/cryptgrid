@@ -28,12 +28,16 @@
     { "id": "secret_a", "x": 12, "z": 10, "type": "secret", "open": false }
   ],
   "wallFeatures": [
-    { "id": "lever_1", "x": 9, "z": 2, "face": "E", "type": "lever",
+    { "id": "lever_1", "x": 8, "z": 6, "face": "E", "type": "lever",
       "targets": ["door_hall"], "action": "toggle" },
     { "id": "sw_hidden1", "x": 10, "z": 7, "face": "N", "type": "switch",
       "variant": "secretBrick", "targets": ["secret_a"], "action": "toggle" },
     { "id": "alc_1", "x": 5, "z": 13, "face": "S", "type": "alcove",
       "items": [ { "id": "itm_torch_1", "type": "torch" } ] },
+    { "id": "alc_hidden1", "x": 13, "z": 11, "face": "E", "type": "alcove",
+      "hidden": true, "items": [ { "id": "itm_key_1", "type": "ironkey" } ] },
+    { "id": "sw_hidden2", "x": 11, "z": 13, "face": "S", "type": "switch",
+      "variant": "secretBrick", "targets": ["alc_hidden1"], "action": "toggle" },
     { "id": "txt_1", "x": 3, "z": 7, "face": "N", "type": "inscription",
       "text": "Kor Ign Dart drives back the dark." }
   ],

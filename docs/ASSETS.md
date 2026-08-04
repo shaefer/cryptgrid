@@ -32,7 +32,7 @@ Technique per texture — layered and cheap but effective:
 | `ceiling_stone.png` | Rough-hewn, darkest of the set |
 | `door_portcullis.png` | Iron bars on transparent background |
 | `door_secret.png` | = wall_stone with faint seam cross |
-| `feature_lever.png`, `feature_switch.png` | Wall-mounted, transparent bg, on/off frames. Required since M0.3, actually generated in M0.8 |
+| `feature_lever.png`, `feature_lever_on.png`, `feature_switch.png` | Wall-mounted, transparent bg. Lever ships as two frames (handle up = off, down = on); the renderer swaps textures on toggle. Required since M0.3, actually generated in M0.8 |
 
 Every M0.8 wall type gets its **own** `_secretbrick` pairing (docs/ROADMAP.md M0.8) — a secret switch always blends with whichever stone actually surrounds it, so three wall types means three independent tells, not one tell reused across three backgrounds.
 
@@ -54,9 +54,22 @@ Palette: stone `#4a4e55–#6b7078`, mortar `#2e3136`, warm torch grime `#5c4a3a`
 |---|---|
 | `assets/textures/wall_stone.png` | `generated:tools/gen-textures/generate.mjs` |
 | `assets/textures/wall_stone_secretbrick.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_fieldstone.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_fieldstone_secretbrick.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_hewn.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_hewn_secretbrick.png` | `generated:tools/gen-textures/generate.mjs` |
 | `assets/textures/wall_alcove_back.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/feature_switch.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/feature_lever.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/feature_lever_on.png` | `generated:tools/gen-textures/generate.mjs` |
 | `assets/textures/floor_stone.png` | `generated:tools/gen-textures/generate.mjs` |
 | `assets/textures/ceiling_stone.png` | `generated:tools/gen-textures/generate.mjs` |
 | `assets/textures/door_portcullis.png` | `generated:tools/gen-textures/generate.mjs` |
 | `assets/textures/door_secret.png` | `generated:tools/gen-textures/generate.mjs` |
 | `assets/textures/_preview/*` | `generated:tools/gen-textures/generate.mjs` (2×2 tiling check, not shipped in builds) |
+| `assets/items/shortsword.png` | `generated:tools/gen-items/generate.mjs` |
+| `assets/items/torch.png` | `generated:tools/gen-items/generate.mjs` |
+| `assets/items/bread.png` | `generated:tools/gen-items/generate.mjs` |
+| `assets/items/waterflask.png` | `generated:tools/gen-items/generate.mjs` |
+| `assets/items/ironkey.png` | `generated:tools/gen-items/generate.mjs` |
+| `assets/items/scroll.png` | `generated:tools/gen-items/generate.mjs` |

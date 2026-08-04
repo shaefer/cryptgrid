@@ -1,5 +1,6 @@
 export * from "./constants";
 export * from "./facing";
+export * from "./hash";
 export * from "./rng";
 export * from "./commands";
 export * from "./events";

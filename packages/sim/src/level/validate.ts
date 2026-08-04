@@ -86,6 +86,11 @@ export function validateLevel(level: LevelJSON): ValidationError[] {
     }
   });
 
+  // Collected up front: a switch may target an alcove defined later in the array.
+  const alcoveIds = new Set(
+    level.wallFeatures.filter((f) => f.type === "alcove").map((f) => f.id),
+  );
+
   for (const feature of level.wallFeatures) {
     claimId(feature.id, "wallFeatures");
 
@@ -118,10 +123,12 @@ export function validateLevel(level: LevelJSON): ValidationError[] {
 
     if (feature.type === "switch" || feature.type === "lever") {
       for (const targetId of feature.targets) {
-        if (!doorIds.has(targetId)) {
+        // Doors or alcoves — a switch can reveal a hidden alcove the same way
+        // it opens a secret door (LEVELS.md "Validation", M0.8).
+        if (!doorIds.has(targetId) && !alcoveIds.has(targetId)) {
           errors.push({
             code: "target-unresolved",
-            message: `feature "${feature.id}" targets unknown door "${targetId}"`,
+            message: `feature "${feature.id}" targets unknown door or alcove "${targetId}"`,
           });
         }
       }

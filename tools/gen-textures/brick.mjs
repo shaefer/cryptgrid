@@ -29,6 +29,10 @@ export function brickTexture({
   grungeCount = 40,
   crackCount = 3,
   proudBrick = null,
+  // Per-brick horizontal shift (px) — breaks the running bond into irregular
+  // courses for fieldstone-style walls. 0 (default) skips the rng call
+  // entirely so pre-M0.8 textures regenerate byte-identical.
+  shiftPx = 0,
 }) {
   const rng = mulberry32(seed);
   const png = createImage(size);
@@ -46,7 +50,9 @@ export function brickTexture({
     const y0 = row * brickH;
     for (let col = 0; col < cols; col++) {
       const isProud = proudBrick && proudBrick.row === row && proudBrick.col === col;
-      const x0 = col * brickW + rowOffset + (isProud ? 2 : 0);
+      const shift = shiftPx ? Math.round((rng() * 2 - 1) * shiftPx) : 0;
+      const restX = col * brickW + rowOffset + shift;
+      const x0 = restX + (isProud ? 2 : 0);
       const y = y0 + (isProud ? 2 : 0);
       const [br, bg, bb] = jitterColor(rng, base, jitterAmount);
 
@@ -58,10 +64,10 @@ export function brickTexture({
 
       if (isProud) {
         // Hairline shadow where the brick used to sit — the secret-switch tell.
-        forEachXWrapped(png, col * brickW + rowOffset, w, y0, 2, (px, py) =>
+        forEachXWrapped(png, restX, w, y0, 2, (px, py) =>
           blendPixel(png, px, py, 0, 0, 0, 0.3),
         );
-        forEachXWrapped(png, col * brickW + rowOffset, 2, y0, h, (px, py) =>
+        forEachXWrapped(png, restX, 2, y0, h, (px, py) =>
           blendPixel(png, px, py, 0, 0, 0, 0.3),
         );
       }
