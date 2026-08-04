@@ -73,3 +73,4 @@ Palette: stone `#4a4e55–#6b7078`, mortar `#2e3136`, warm torch grime `#5c4a3a`
 | `assets/items/waterflask.png` | `generated:tools/gen-items/generate.mjs` |
 | `assets/items/ironkey.png` | `generated:tools/gen-items/generate.mjs` |
 | `assets/items/scroll.png` | `generated:tools/gen-items/generate.mjs` |
+| `assets/runes/*.svg` (24 files) | `generated:tools/gen-runes/generate.mjs` |

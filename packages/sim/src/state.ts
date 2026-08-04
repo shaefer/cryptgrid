@@ -45,6 +45,21 @@ export interface PartyState {
   members: (Character | null)[];
   inventory: ItemInstance[];
   runeBuffer: string[];
+  /** Tick until which the Light spell boosts the torch — 0 = never cast. Recasting refreshes (max wins). */
+  lightBoostUntil: number;
+}
+
+/** A spell projectile in flight (Firebolt, M0.9) — advances 1 tile per PROJECTILE_TICKS_PER_TILE. */
+export interface Projectile {
+  id: number;
+  kind: "firebolt";
+  x: number;
+  z: number;
+  facing: Facing;
+  potencyMultiplier: number;
+  /** Damage carried to impact — unused until monsters exist (M1). */
+  damage: number;
+  lastMovedTick: number;
 }
 
 export interface GameState {
@@ -52,7 +67,9 @@ export interface GameState {
   levelId: string;
   level: LevelRuntime;
   party: PartyState;
-  projectiles: unknown[]; // Projectile[] arrives with spellcasting in M0.9
+  projectiles: Projectile[];
+  /** Monotonic id source for spawned entities — deterministic, never reused. */
+  nextProjectileId: number;
   rngState: number;
   /** Multiplies Hunger/Thirst decay for dev/testing visibility — 1 in normal play. */
   devDecayMultiplier: number;
@@ -103,8 +120,10 @@ export function createInitialState(
       members: [createPremadeCharacter(), null, null, null],
       inventory: [],
       runeBuffer: [],
+      lightBoostUntil: 0,
     },
     projectiles: [],
+    nextProjectileId: 1,
     rngState: seed >>> 0,
     devDecayMultiplier: options.devDecayMultiplier ?? 1,
   };

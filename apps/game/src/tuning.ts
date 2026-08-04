@@ -45,10 +45,15 @@ export const CAMERA_PITCH_DEG = 12;
 
 /** Torch flicker: base intensity plus two out-of-phase sine terms (amplitude, rate in rad/s). */
 export const TORCH_BASE_INTENSITY = 60;
+export const TORCH_DISTANCE = 20;
 export const TORCH_FLICKER = [
   { amplitude: 4, rate: 7.3 },
   { amplitude: 3, rate: 13.1 },
 ] as const;
+
+/** Light spell (M0.9): while state.party.lightBoostUntil > tick, the torch burns brighter and farther. */
+export const LIGHT_BOOST_INTENSITY_MULT = 2.2;
+export const LIGHT_BOOST_DISTANCE = 34;
 
 /**
  * Easing for move and turn tweens. Quadratic ease-out is the "slight ease-out"

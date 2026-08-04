@@ -8,6 +8,8 @@ export * from "./state";
 export * from "./tick";
 export * from "./tuning";
 export * from "./items/registry";
+export * from "./spells/runes";
+export * from "./spells/registry";
 export * from "./level/types";
 export * from "./level/parse";
 export * from "./level/query";

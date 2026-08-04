@@ -17,4 +17,13 @@ export type SimEvent =
   | { type: "DoorClosed"; doorId: string }
   | { type: "AlcoveRevealed"; alcoveId: string }
   | { type: "ItemPlacedInAlcove"; characterId: string; alcoveId: string; itemId: string }
-  | { type: "PlaceRejected"; characterId: string; alcoveId: string; reason: "not-here" };
+  | { type: "PlaceRejected"; characterId: string; alcoveId: string; reason: "not-here" }
+  | { type: "RunePressed"; characterId: string; runeId: string; manaSpent: number }
+  | { type: "RuneRejected"; characterId: string; runeId: string; reason: "insufficient-mana" | "invalid-order" }
+  | { type: "RuneErased"; characterId: string; runeId: string }
+  | { type: "RunesCleared"; characterId: string }
+  | { type: "SpellCast"; characterId: string; spellId: string; potencyMultiplier: number }
+  | { type: "SpellFizzled"; characterId: string; runes: string[] }
+  | { type: "ProjectileSpawned"; id: number; kind: "firebolt"; x: number; z: number; facing: Facing; potencyMultiplier: number }
+  | { type: "ProjectileMoved"; id: number; x: number; z: number }
+  | { type: "ProjectileHitWall"; id: number; x: number; z: number };

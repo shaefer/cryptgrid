@@ -1,3 +1,4 @@
+import { recordSpellUse } from "./character/spellMastery";
 import { hungerStatus } from "./character/vitals";
 import type { Command, HandIndex, MoveDir, TurnDir } from "./commands";
 import type { SimEvent } from "./events";
@@ -5,7 +6,14 @@ import { FACING_DELTA, type Facing, opposite, turnLeft, turnRight } from "./faci
 import { getItemType } from "./items/registry";
 import { alcovesAt, findDoorById, findFeatureById, findItemById, isWalkable } from "./level/query";
 import type { AlcoveFeature, SwitchAction } from "./level/types";
-import type { Character, GameState, Hands, PartyState, Stat } from "./state";
+import {
+  FIREBOLT_DAMAGE_PER_MULTIPLIER,
+  LIGHT_DURATION_TICKS_PER_MULTIPLIER,
+  PROJECTILE_TICKS_PER_TILE,
+  resolveSpell,
+} from "./spells/registry";
+import { allowedTiersAt, potencyMultiplier, RUNES_BY_ID, runeCost } from "./spells/runes";
+import type { Character, GameState, Hands, PartyState, Projectile, Stat } from "./state";
 import {
   decayPerTick,
   HP_DRAIN_PER_TICK_BY_STATUS,
@@ -54,6 +62,14 @@ function resolveCommand(state: GameState, command: Command): TickResult {
       return resolveInteract(state, command.characterId, command.targetId);
     case "ALCOVE_PLACE":
       return resolveAlcovePlace(state, command.characterId, command.hand, command.alcoveId);
+    case "RUNE":
+      return resolveRune(state, command.characterId, command.runeId);
+    case "RUNE_ERASE":
+      return resolveRuneErase(state, command.characterId);
+    case "RUNE_CLEAR":
+      return resolveRuneClear(state, command.characterId);
+    case "INVOKE":
+      return resolveInvoke(state, command.characterId);
   }
 }
 
@@ -66,6 +82,10 @@ export function tick(state: GameState, commands: readonly Command[]): TickResult
     next = result.state;
     events.push(...result.events);
   }
+
+  const projectilePhase = tickProjectiles(next);
+  next = projectilePhase.state;
+  events.push(...projectilePhase.events);
 
   next = applyVitalsTick(next);
 
@@ -426,6 +446,168 @@ function resolveConsume(state: GameState, characterId: string, itemId: string): 
   }
 
   return { state: updated, events: [{ type: "ItemConsumed", characterId, itemId }] };
+}
+
+/**
+ * Rune press (docs/SPELLS.md "Casting flow"). No cooldown — composing is
+ * free-flowing and legal mid-walk. Mana is paid *now*, per rune, scaled by
+ * the buffer's potency; not enough mana and the rune simply won't light.
+ */
+function resolveRune(state: GameState, characterId: string, runeId: string): TickResult {
+  const { party } = state;
+  const memberIndex = findMemberIndex(party, characterId);
+  const character = memberIndex === -1 ? null : party.members[memberIndex];
+  if (!character) return { state, events: [] };
+
+  const rune = RUNES_BY_ID[runeId];
+  if (!rune || !allowedTiersAt(party.runeBuffer).includes(rune.tier)) {
+    return {
+      state,
+      events: [{ type: "RuneRejected", characterId, runeId, reason: "invalid-order" }],
+    };
+  }
+
+  const potencyId = party.runeBuffer[0] ?? runeId;
+  const cost = runeCost(runeId, potencyId);
+  if (character.mana.cur < cost) {
+    return {
+      state,
+      events: [{ type: "RuneRejected", characterId, runeId, reason: "insufficient-mana" }],
+    };
+  }
+
+  const paid = withMemberAt(state, memberIndex, {
+    ...character,
+    mana: { ...character.mana, cur: character.mana.cur - cost },
+  });
+  return {
+    state: { ...paid, party: { ...paid.party, runeBuffer: [...party.runeBuffer, runeId] } },
+    events: [{ type: "RunePressed", characterId, runeId, manaSpent: cost }],
+  };
+}
+
+/** Backspace: removes the last rune. Mana spent is spent — no refund (SPELLS.md's pay-as-you-compose tension). */
+function resolveRuneErase(state: GameState, characterId: string): TickResult {
+  const buffer = state.party.runeBuffer;
+  const last = buffer[buffer.length - 1];
+  if (last === undefined) return { state, events: [] };
+  return {
+    state: { ...state, party: { ...state.party, runeBuffer: buffer.slice(0, -1) } },
+    events: [{ type: "RuneErased", characterId, runeId: last }],
+  };
+}
+
+function resolveRuneClear(state: GameState, characterId: string): TickResult {
+  if (state.party.runeBuffer.length === 0) return { state, events: [] };
+  return {
+    state: { ...state, party: { ...state.party, runeBuffer: [] } },
+    events: [{ type: "RunesCleared", characterId }],
+  };
+}
+
+/**
+ * Invoke the composed sequence (docs/SPELLS.md). Valid -> the spell resolves
+ * and mastery ticks up; unknown -> fizzle, mana already spent is lost. Either
+ * way the buffer clears. Deterministic in M0 — mastery only starts nudging
+ * success chance in M1.
+ */
+function resolveInvoke(state: GameState, characterId: string): TickResult {
+  const { party } = state;
+  if (party.runeBuffer.length === 0) return { state, events: [] };
+
+  const memberIndex = findMemberIndex(party, characterId);
+  const character = memberIndex === -1 ? null : party.members[memberIndex];
+  if (!character) return { state, events: [] };
+
+  const spell = resolveSpell(party.runeBuffer);
+  const cleared = { ...state, party: { ...state.party, runeBuffer: [] } };
+
+  if (!spell) {
+    return {
+      state: cleared,
+      events: [{ type: "SpellFizzled", characterId, runes: [...party.runeBuffer] }],
+    };
+  }
+
+  const multiplier = potencyMultiplier(party.runeBuffer[0] ?? "");
+  const withMastery = withMemberAt(cleared, memberIndex, {
+    ...character,
+    spellMastery: recordSpellUse(character.spellMastery, spell.id, true),
+  });
+  const events: SimEvent[] = [
+    { type: "SpellCast", characterId, spellId: spell.id, potencyMultiplier: multiplier },
+  ];
+
+  if (spell.id === "light") {
+    const until = state.tick + LIGHT_DURATION_TICKS_PER_MULTIPLIER * multiplier;
+    return {
+      state: {
+        ...withMastery,
+        party: {
+          ...withMastery.party,
+          // Stacking refreshes — a weaker recast never shortens a stronger one.
+          lightBoostUntil: Math.max(withMastery.party.lightBoostUntil, until),
+        },
+      },
+      events,
+    };
+  }
+
+  // Firebolt: spawn at the party's own tile; first advance comes after
+  // PROJECTILE_TICKS_PER_TILE ticks, so a point-blank wall still gets hit.
+  const projectile: Projectile = {
+    id: state.nextProjectileId,
+    kind: "firebolt",
+    x: party.x,
+    z: party.z,
+    facing: party.facing,
+    potencyMultiplier: multiplier,
+    damage: FIREBOLT_DAMAGE_PER_MULTIPLIER * multiplier,
+    lastMovedTick: state.tick,
+  };
+  events.push({
+    type: "ProjectileSpawned",
+    id: projectile.id,
+    kind: "firebolt",
+    x: projectile.x,
+    z: projectile.z,
+    facing: projectile.facing,
+    potencyMultiplier: multiplier,
+  });
+  return {
+    state: {
+      ...withMastery,
+      projectiles: [...withMastery.projectiles, projectile],
+      nextProjectileId: state.nextProjectileId + 1,
+    },
+    events,
+  };
+}
+
+/** Advances every projectile that's due to move this tick; walls and closed doors stop them. */
+function tickProjectiles(state: GameState): TickResult {
+  if (state.projectiles.length === 0) return { state, events: [] };
+
+  const events: SimEvent[] = [];
+  const survivors: Projectile[] = [];
+
+  for (const projectile of state.projectiles) {
+    if (state.tick - projectile.lastMovedTick < PROJECTILE_TICKS_PER_TILE) {
+      survivors.push(projectile);
+      continue;
+    }
+    const delta = FACING_DELTA[projectile.facing];
+    const nx = projectile.x + delta.dx;
+    const nz = projectile.z + delta.dz;
+    if (!isWalkable(state.level, nx, nz)) {
+      events.push({ type: "ProjectileHitWall", id: projectile.id, x: nx, z: nz });
+      continue; // consumed on impact
+    }
+    survivors.push({ ...projectile, x: nx, z: nz, lastMovedTick: state.tick });
+    events.push({ type: "ProjectileMoved", id: projectile.id, x: nx, z: nz });
+  }
+
+  return { state: { ...state, projectiles: survivors }, events };
 }
 
 function clamp(value: number, min: number, max: number): number {

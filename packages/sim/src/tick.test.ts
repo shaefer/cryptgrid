@@ -678,3 +678,151 @@ describe("tick — alcove take/place", () => {
     ]);
   });
 });
+
+describe("tick — runes & casting", () => {
+  let state: GameState;
+
+  beforeEach(() => {
+    state = createInitialState(parseLevel(roomLevel()), 1);
+    // Plenty of mana so cost checks are explicit, not accidental. Mana regen
+    // still runs every tick, so mana assertions are bounded like CONSUME's.
+    state = withCharacter(state, { mana: { cur: 50, max: 50 } });
+  });
+
+  const press = (s: GameState, runeId: string) =>
+    tick(s, [{ type: "RUNE", characterId: "bram", runeId }]);
+
+  it("deducts mana the moment each rune is pressed, scaled by potency", () => {
+    // Kor (×2): potency 1×2=2, essence 2×2=4.
+    const first = press(state, "kor");
+    expect(first.events).toEqual([
+      { type: "RunePressed", characterId: "bram", runeId: "kor", manaSpent: 2 },
+    ]);
+    expect(bram(first.state).mana.cur).toBeGreaterThan(47.9);
+    expect(bram(first.state).mana.cur).toBeLessThanOrEqual(48.1);
+
+    const second = press(first.state, "ign");
+    expect(second.events).toEqual([
+      { type: "RunePressed", characterId: "bram", runeId: "ign", manaSpent: 4 },
+    ]);
+    expect(second.state.party.runeBuffer).toEqual(["kor", "ign"]);
+  });
+
+  it("blocks a rune the caster can't afford — nothing added, no mana lost", () => {
+    state = withCharacter(state, { mana: { cur: 1, max: 50 } });
+    const result = press(state, "kor"); // costs 2
+    expect(result.events).toEqual([
+      { type: "RuneRejected", characterId: "bram", runeId: "kor", reason: "insufficient-mana" },
+    ]);
+    expect(result.state.party.runeBuffer).toEqual([]);
+  });
+
+  it("rejects a rune out of grammar order", () => {
+    const result = press(state, "ign"); // essence first — potency must lead
+    expect(result.events).toEqual([
+      { type: "RuneRejected", characterId: "bram", runeId: "ign", reason: "invalid-order" },
+    ]);
+  });
+
+  it("erases the last rune without refunding its mana", () => {
+    const s = press(state, "kor").state;
+    const manaAfterPress = bram(s).mana.cur;
+    const erased = tick(s, [{ type: "RUNE_ERASE", characterId: "bram" }]);
+    expect(erased.events).toEqual([{ type: "RuneErased", characterId: "bram", runeId: "kor" }]);
+    expect(erased.state.party.runeBuffer).toEqual([]);
+    // No refund — mana only moved by one tick of regen since the press.
+    expect(bram(erased.state).mana.cur).toBeLessThan(manaAfterPress + 0.1);
+  });
+
+  it("Kor Ign Dart invokes into a firebolt projectile", () => {
+    let s = press(state, "kor").state;
+    s = press(s, "ign").state;
+    s = press(s, "dart").state;
+    const result = tick(s, [{ type: "INVOKE", characterId: "bram" }]);
+
+    expect(result.events).toEqual([
+      { type: "SpellCast", characterId: "bram", spellId: "firebolt", potencyMultiplier: 2 },
+      {
+        type: "ProjectileSpawned",
+        id: 1,
+        kind: "firebolt",
+        x: s.party.x,
+        z: s.party.z,
+        facing: s.party.facing,
+        potencyMultiplier: 2,
+      },
+    ]);
+    expect(result.state.projectiles).toHaveLength(1);
+    expect(result.state.projectiles[0]?.damage).toBe(10); // 5 × 2
+    expect(result.state.party.runeBuffer).toEqual([]);
+  });
+
+  it("projectile advances 1 tile per 2 ticks and halts at a wall", () => {
+    // Party at (1,1) facing E in the 5-wide room: floor at x=2,3, wall at x=4.
+    let s = press(state, "kor").state;
+    s = press(s, "ign").state;
+    s = press(s, "dart").state;
+    s = tick(s, [{ type: "INVOKE", characterId: "bram" }]).state;
+
+    const positions: number[] = [];
+    let hitWall = false;
+    for (let i = 0; i < 8 && !hitWall; i++) {
+      const result = tick(s, []);
+      s = result.state;
+      for (const event of result.events) {
+        if (event.type === "ProjectileMoved") positions.push(event.x);
+        if (event.type === "ProjectileHitWall") {
+          hitWall = true;
+          expect(event.x).toBe(4); // the east wall
+        }
+      }
+    }
+    expect(positions).toEqual([2, 3]); // one tile per 2 ticks, then impact
+    expect(hitWall).toBe(true);
+    expect(s.projectiles).toEqual([]);
+  });
+
+  it("[P] Lume invokes into Light: boosts until 30s × multiplier, stacking refreshes", () => {
+    let s = press(state, "kor").state; // ×2
+    s = press(s, "lume").state;
+    const cast = tick(s, [{ type: "INVOKE", characterId: "bram" }]);
+    expect(cast.events).toEqual([
+      { type: "SpellCast", characterId: "bram", spellId: "light", potencyMultiplier: 2 },
+    ]);
+    const until = cast.state.party.lightBoostUntil;
+    // The INVOKE resolves at s.tick + 1 (tick() advances before resolving).
+    expect(until).toBe(s.tick + 1 + 30 * 10 * 2); // 30s × TICKS_PER_SECOND × 2
+
+    // A weaker recast (Eth, ×1) must not shorten the running boost.
+    let s2 = press(cast.state, "eth").state;
+    s2 = press(s2, "lume").state;
+    const recast = tick(s2, [{ type: "INVOKE", characterId: "bram" }]);
+    expect(recast.state.party.lightBoostUntil).toBe(until);
+  });
+
+  it("an unknown sequence fizzles: buffer cleared, mana stays spent", () => {
+    let s = press(state, "kor").state;
+    s = press(s, "krys").state; // Frostbolt doesn't exist until M1
+    s = press(s, "dart").state;
+    const manaBefore = bram(s).mana.cur;
+    const result = tick(s, [{ type: "INVOKE", characterId: "bram" }]);
+
+    expect(result.events).toEqual([
+      { type: "SpellFizzled", characterId: "bram", runes: ["kor", "krys", "dart"] },
+    ]);
+    expect(result.state.party.runeBuffer).toEqual([]);
+    expect(bram(result.state).mana.cur).toBeLessThan(manaBefore + 0.1); // no refund
+  });
+
+  it("a successful cast increments that spell's mastery uses", () => {
+    let s = press(state, "kor").state;
+    s = press(s, "lume").state;
+    const result = tick(s, [{ type: "INVOKE", characterId: "bram" }]);
+    expect(bram(result.state).spellMastery.light).toEqual({ uses: 1, successes: 1 });
+  });
+
+  it("invoking an empty buffer is a silent no-op", () => {
+    const result = tick(state, [{ type: "INVOKE", characterId: "bram" }]);
+    expect(result.events).toEqual([]);
+  });
+});

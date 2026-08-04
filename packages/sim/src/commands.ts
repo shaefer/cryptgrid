@@ -14,4 +14,10 @@ export type Command =
   | { type: "INTERACT"; characterId: string; targetId: string }
   // Held item -> a reachable alcove's shelf (the "place" half of take/place;
   // "take" is PICKUP, which searches alcoves at the party's cell too).
-  | { type: "ALCOVE_PLACE"; characterId: string; hand: HandIndex; alcoveId: string };
+  | { type: "ALCOVE_PLACE"; characterId: string; hand: HandIndex; alcoveId: string }
+  // Rune Tongue casting (docs/SPELLS.md, M0.9). Mana is paid the moment each
+  // rune is pressed; erase/clear never refund; INVOKE resolves or fizzles.
+  | { type: "RUNE"; characterId: string; runeId: string }
+  | { type: "RUNE_ERASE"; characterId: string }
+  | { type: "RUNE_CLEAR"; characterId: string }
+  | { type: "INVOKE"; characterId: string };

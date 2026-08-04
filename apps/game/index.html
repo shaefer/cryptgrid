@@ -217,6 +217,124 @@
       #toast[hidden] {
         display: none;
       }
+      .rune-panel {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        width: 460px;
+        background: rgba(15, 16, 20, 0.92);
+        border: 1px solid #3a3d42;
+        border-radius: 4px;
+        padding: 12px 14px;
+        user-select: none;
+        z-index: 5;
+      }
+      .rune-panel[hidden] {
+        display: none;
+      }
+      .rune-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        border-bottom: 1px solid #2e3136;
+        padding-bottom: 6px;
+        margin-bottom: 8px;
+      }
+      .rune-hint {
+        font-size: 10px;
+        opacity: 0.55;
+        font-style: italic;
+      }
+      .rune-sequence {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 34px;
+        margin-bottom: 8px;
+        font-size: 12px;
+        color: #d8cfa0;
+      }
+      .rune-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #1a1b1f;
+        border: 1px solid #3a3d42;
+        border-radius: 3px;
+        padding: 2px 6px;
+      }
+      .rune-chip svg {
+        width: 18px;
+        height: 18px;
+      }
+      .rune-spell-label {
+        font-style: italic;
+        opacity: 0.85;
+      }
+      .rune-tier-row {
+        display: flex;
+        align-items: stretch;
+        gap: 4px;
+        margin-bottom: 6px;
+      }
+      .rune-tier-label {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        opacity: 0.5;
+        display: flex;
+        align-items: center;
+      }
+      .rune-btn {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        background: #1a1b1f;
+        border: 1px solid #3a3d42;
+        border-radius: 3px;
+        padding: 5px 2px 3px;
+        color: #d8cfa0;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .rune-btn:hover {
+        border-color: #c9a24a;
+        color: #f0e6c0;
+      }
+      .rune-btn svg {
+        width: 24px;
+        height: 24px;
+      }
+      .rune-btn-caption {
+        font-size: 9px;
+        opacity: 0.75;
+        white-space: nowrap;
+      }
+      .rune-btn-poor {
+        color: #6b4a42;
+        opacity: 0.6;
+      }
+      .rune-invoke {
+        width: 100%;
+        background: #2a2416;
+        border: 1px solid #c9a24a;
+        border-radius: 3px;
+        color: #e8d9a0;
+        font-family: inherit;
+        font-size: 13px;
+        letter-spacing: 0.1em;
+        padding: 6px 0;
+        cursor: pointer;
+      }
+      .rune-invoke:hover {
+        background: #3a3220;
+      }
     </style>
   </head>
   <body>

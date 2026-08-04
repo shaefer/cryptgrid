@@ -11,19 +11,27 @@ import {
   type LevelJSON,
 } from "@cryptgrid/sim";
 import { CharacterSheet } from "./hud/characterSheet";
+import { loadRuneGlyphs, RunePanel } from "./hud/runePanel";
 import { VitalsHud } from "./hud/vitalsHud";
 import { ActiveCharacterController } from "./input/activeCharacterController";
 import { InteractionInput } from "./input/interactionInput";
 import { KeyboardInput } from "./input/keyboard";
 import { SheetController } from "./input/sheetController";
 import { PartyView } from "./render/partyView";
+import { ProjectileViews } from "./render/projectileViews";
 import { buildLevel } from "./scene/buildLevel";
 import { DoorViews } from "./scene/doors";
 import { FeatureViews } from "./scene/features";
 import { ItemSprites } from "./scene/items";
 import { loadItemTextures } from "./scene/itemTextures";
 import { loadDungeonTextures } from "./scene/textures";
-import { TORCH_BASE_INTENSITY, TORCH_FLICKER } from "./tuning";
+import {
+  LIGHT_BOOST_DISTANCE,
+  LIGHT_BOOST_INTENSITY_MULT,
+  TORCH_BASE_INTENSITY,
+  TORCH_DISTANCE,
+  TORCH_FLICKER,
+} from "./tuning";
 
 const FOG_COLOR = 0x0d0e12;
 const TICK_MS = 1000 / TICKS_PER_SECOND;
@@ -55,16 +63,17 @@ async function main(): Promise<void> {
   scene.add(camera); // the torch is a child of the camera, so it must be in the graph
 
   scene.add(new THREE.AmbientLight(0x404050, 0.6));
-  const torch = new THREE.PointLight(0xffb46b, TORCH_BASE_INTENSITY, 20, 1.8);
+  const torch = new THREE.PointLight(0xffb46b, TORCH_BASE_INTENSITY, TORCH_DISTANCE, 1.8);
   camera.add(torch);
 
   // BASE_URL keeps these working both at "/" in dev and "/cryptgrid/" on Pages.
-  const [levelJson, textures, itemTextures] = await Promise.all([
+  const [levelJson, textures, itemTextures, runeGlyphs] = await Promise.all([
     fetch(`${import.meta.env.BASE_URL}levels/vault01.json`).then(
       (res) => res.json() as Promise<LevelJSON>,
     ),
     loadDungeonTextures(),
     loadItemTextures(),
+    loadRuneGlyphs(),
   ]);
 
   const errors = validateLevel(levelJson);
@@ -88,9 +97,22 @@ async function main(): Promise<void> {
   itemSprites.update(state.level.items);
 
   const partyView = new PartyView(camera, state.party);
+  const projectileViews = new ProjectileViews(scene);
   const input = new KeyboardInput();
   input.attach(window);
   const vitalsHud = new VitalsHud(vitals);
+
+  // Rune commands are ungated (no cooldown) — queued here, drained every tick.
+  const runeCommands: Command[] = [];
+  const runePanelEl = document.createElement("div");
+  document.body.appendChild(runePanelEl);
+  const runePanel = new RunePanel(runePanelEl, runeGlyphs, (command) => {
+    runeCommands.push(command);
+  });
+  // Attached BEFORE the digit-key controllers: while casting is open, the
+  // panel swallows 1-6/Esc via stopImmediatePropagation so sheet/character
+  // selection doesn't fire mid-composition.
+  runePanel.attach(window);
 
   const activeCharacter = new ActiveCharacterController();
   activeCharacter.attach(window);
@@ -138,8 +160,9 @@ async function main(): Promise<void> {
   interactionInput.attach(window);
 
   const updateHud = (): void => {
-    hud.textContent = `${level.name} — (${state.party.x},${state.party.z}) facing ${state.party.facing}   ·   WASD move · QE turn · click/F pick up · right-click stow`;
+    hud.textContent = `${level.name} — (${state.party.x},${state.party.z}) facing ${state.party.facing}   ·   WASD move · QE turn · click/F touch · right-click stow · C cast`;
     vitalsHud.update(state.party.members, activeCharacter.active);
+    runePanel.update(state, state.party.members[activeCharacter.active]?.id ?? null);
     const openIndex = sheetController.openIndex;
     if (openIndex !== null) characterSheet.render(openIndex, state.party);
   };
@@ -186,6 +209,7 @@ async function main(): Promise<void> {
         commands.push(consumeCommand);
         consumeCommand = null;
       }
+      commands.push(...runeCommands.splice(0)); // casting is also ungated
 
       const result = tick(state, commands);
       state = result.state;
@@ -193,6 +217,7 @@ async function main(): Promise<void> {
         partyView.handleEvent(event, nowMs);
         doorViews.handleEvent(event, nowMs);
         featureViews.handleEvent(event);
+        projectileViews.handleEvent(event, nowMs);
       }
     }
     if (ticksThisFrame > 0) {
@@ -206,13 +231,17 @@ async function main(): Promise<void> {
 
     partyView.update(nowMs);
     doorViews.update(nowMs);
+    projectileViews.update(nowMs);
 
+    // Light spell: brighter, farther torch while the boost holds (M0.9).
+    const lightBoosted = state.party.lightBoostUntil > state.tick;
     const seconds = nowMs / 1000;
-    let intensity = TORCH_BASE_INTENSITY;
+    let intensity = TORCH_BASE_INTENSITY * (lightBoosted ? LIGHT_BOOST_INTENSITY_MULT : 1);
     for (const { amplitude, rate } of TORCH_FLICKER) {
       intensity += Math.sin(seconds * rate) * amplitude;
     }
     torch.intensity = intensity;
+    torch.distance = lightBoosted ? LIGHT_BOOST_DISTANCE : TORCH_DISTANCE;
 
     renderer.render(scene, camera);
     document.body.dataset.ready = "true";
