@@ -35,7 +35,7 @@ A first-person, **real-time**, grid-based dungeon crawler. You lead a party of a
 ## Interactions
 
 - **Mouse raycast click** on world surfaces is the universal "touch" verb; `F` interacts with whatever is centered ahead.
-- **Floor items:** rendered as camera-facing sprites (DM-style) lying on tiles; click to pick up into a party inventory (Milestone 0: shared party inventory list; per-character paper-doll inventory is a later milestone).
+- **Floor items:** rendered as flat quads lying on tiles, foreshortened and shaded so they actually read as sitting on the floor (M0.11 — camera-facing sprites can't sell that); click to pick up into a party inventory (Milestone 0: shared party inventory list; per-character paper-doll inventory is a later milestone).
 - **Alcoves:** recessed wall niches that hold items; click item to take, click alcove with item selected to place (placing can trigger puzzles later).
 - **Switches & levers:** wall features that toggle targets by id — doors, secret doors, (later) pits and teleporters. **Secret switches** are visually subtle variants (a slightly displaced brick) — same mechanic, sneakier texture.
 - **Doors:** portcullis/wooden slab that slides up/down over ~0.6s; blocks movement while closed. **Secret doors** look like plain wall until triggered, then grind sideways/up.

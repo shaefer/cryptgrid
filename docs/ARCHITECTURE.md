@@ -69,12 +69,12 @@ TS project references or a shared `tsconfig.base.json`; `packages/sim` builds to
 - **Tile scale:** 1 tile = 3×3 world units, ceiling at 3. Camera FOV ~75°, positioned at (tileCenter, 1.6, tileCenter).
 - **Textures:** 512×512 tileable PNGs from `assets/textures/` (see ASSETS.md), NearestFilter *off* — we want "clean retro," not pixel soup. One material per surface type; variants (secret-switch brick, alcove frame) are separate textures/materials on their specific instances.
 - **Lighting:** ambient low + a point light attached to the camera (torch), warm color, distance falloff, subtle flicker (sin noise on intensity). Fog matched to background color sells the dungeon depth cheaply. No shadows in M0.
-- **Items:** billboard sprites (`THREE.Sprite`) from `assets/items/`.
-- **Wall features:** thin decorated quads floated 1cm off the wall face (switches, inscriptions) or recessed box cutouts (alcoves — simplest M0 approach: darkened inset quad + item sprite in front).
+- **Items:** flat `THREE.Mesh` quads (`PlaneGeometry` rotated flat, `MeshStandardMaterial`) from `assets/items/`, lying on the floor/shelf plane rather than billboarded (M0.11) — a camera-facing sprite always rotates to face the viewer on every axis and can never read as resting on a surface no matter how well-shaded the art is; a flat quad gets correct perspective foreshortening from any angle for free, the same way the floor texture already does.
+- **Wall features:** thin decorated quads floated 1cm off the wall face (switches, inscriptions) or recessed box cutouts (alcoves — darkened inset quad + item quad resting on the shelf's own local plane, same flat-mesh treatment as floor items).
 - **Doors:** animated sliding mesh between tiles, driven by door state + `DoorOpened/Closing` events.
 - **HUD is DOM, not WebGL.** Vitals bars, inventory panel, rune panel = an HTML/CSS overlay (plain TS + CSS is fine; no React in the game app for M0). Faster to build, accessible, trivially styleable.
 - **Render loop:** `requestAnimationFrame`; accumulate dt → sim ticks at 10Hz; visual positions tween toward sim positions (move 200ms, turn 150ms, ease-out); input buffered (depth 1) while tweening.
-- **Picking:** raycast on click against interactable meshes; each carries `userData.entityId` mapping back to sim entities; hit → `INTERACT` command.
+- **Picking:** two raycast paths against the same interactable meshes (each tagged `userData.entityId`/`entityKind`, mapping back to sim entities) — a discrete one on click/`F` resolving to `PICKUP`/`INTERACT`/`STOW` depending on what was hit (`interactionInput.ts`), and a continuous per-frame one (M0.11, `hoverHighlighter.ts`) driving hover-only visual cues (light-blue glow on an in-pickup-range item, light-yellow tint on a secret switch) with no sim round-trip.
 
 ## Level pipeline
 
