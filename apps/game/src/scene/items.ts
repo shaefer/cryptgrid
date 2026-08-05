@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { stringHash, type ItemSlot, type LevelItem } from "@cryptgrid/sim";
+import { resolveItemSlot, stringHash, type ItemSlot, type LevelItem } from "@cryptgrid/sim";
 import { TILE_SIZE, worldX, worldZ } from "./buildLevel";
 import { itemVisualScale } from "./itemVisuals";
 import type { ItemTextures } from "./itemTextures";
@@ -18,7 +18,6 @@ const GLOW_OPACITY = 0.55;
 // mirrors apps/game/src/tuning.ts's CAMERA_PITCH_DEG comment, which already
 // assumed this exact +-0.75 (TILE_SIZE/4) offset.
 const SLOT_OFFSET: Record<ItemSlot, { dx: number; dz: number }> = {
-  center: { dx: 0, dz: 0 },
   ne: { dx: TILE_SIZE / 4, dz: -TILE_SIZE / 4 },
   se: { dx: TILE_SIZE / 4, dz: TILE_SIZE / 4 },
   nw: { dx: -TILE_SIZE / 4, dz: -TILE_SIZE / 4 },
@@ -125,7 +124,7 @@ export class ItemSprites {
   }
 
   private positionMesh(mesh: THREE.Mesh, item: LevelItem): void {
-    const { dx, dz } = SLOT_OFFSET[item.slot ?? "center"];
+    const { dx, dz } = SLOT_OFFSET[resolveItemSlot(item)];
     mesh.position.set(worldX(item.x) + dx, ITEM_Y, worldZ(item.z) + dz);
   }
 }

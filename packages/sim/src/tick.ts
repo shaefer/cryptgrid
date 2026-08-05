@@ -4,7 +4,14 @@ import type { Command, HandIndex, MoveDir, TurnDir } from "./commands";
 import type { SimEvent } from "./events";
 import { FACING_DELTA, type Facing, opposite, turnLeft, turnRight } from "./facing";
 import { getItemType } from "./items/registry";
-import { alcovesAt, findDoorById, findFeatureById, findItemById, isWalkable } from "./level/query";
+import {
+  alcovesAt,
+  findDoorById,
+  findFeatureById,
+  findItemById,
+  isWalkable,
+  resolveItemSlot,
+} from "./level/query";
 import type { AlcoveFeature, SwitchAction } from "./level/types";
 import {
   FIREBOLT_DAMAGE_PER_MULTIPLIER,
@@ -187,7 +194,7 @@ function resolvePickup(state: GameState, characterId: string, itemId: string): T
   const floorItem = findItemById(state.level, itemId);
   const inRange =
     !!floorItem &&
-    pickupDistance(party.x, party.z, floorItem.x, floorItem.z, floorItem.slot ?? "center") <=
+    pickupDistance(party.x, party.z, floorItem.x, floorItem.z, resolveItemSlot(floorItem)) <=
       PICKUP_RANGE_TILES;
   const alcove = inRange
     ? undefined

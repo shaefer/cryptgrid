@@ -4,6 +4,7 @@ import {
   FACING_DELTA,
   FACINGS,
   ITEM_REGISTRY,
+  resolveItemSlot,
   type Facing,
   type LevelJSON,
   type WallVariantId,
@@ -52,7 +53,6 @@ function itemColor(type: string): string {
 }
 
 const SLOT_OFFSET: Record<string, { dx: number; dz: number }> = {
-  center: { dx: 0, dz: 0 },
   ne: { dx: 0.28, dz: -0.28 },
   se: { dx: 0.28, dz: 0.28 },
   nw: { dx: -0.28, dz: -0.28 },
@@ -132,9 +132,7 @@ export function GridCanvas({
 
   const onSlotClick = (x: number, z: number, slot: string, event: React.MouseEvent) => {
     if (mode !== "items") return;
-    const existing = level.items.find(
-      (i) => i.x === x && i.z === z && (i.slot ?? "center") === slot,
-    );
+    const existing = level.items.find((i) => i.x === x && i.z === z && resolveItemSlot(i) === slot);
     if (event.type === "contextmenu") {
       event.preventDefault();
       if (existing) onChange(removeItem(level, existing.id));
@@ -233,9 +231,7 @@ export function GridCanvas({
 
       if (ch === ".") {
         for (const [slot, offset] of Object.entries(SLOT_OFFSET)) {
-          const item = level.items.find(
-            (i) => i.x === x && i.z === z && (i.slot ?? "center") === slot,
-          );
+          const item = level.items.find((i) => i.x === x && i.z === z && resolveItemSlot(i) === slot);
           const cx = px + CELL_PX / 2 + offset.dx * CELL_PX;
           const cy = pz + CELL_PX / 2 + offset.dz * CELL_PX;
           const isSelected = item && selection?.kind === "item" && selection.id === item.id;

@@ -6,7 +6,7 @@ The level JSON is the shared contract between `apps/editor`, `apps/game`, `packa
 
 - Grid coordinates: `x` = column (east positive), `z` = row (south positive). `(0,0)` is the northwest corner. Maps directly onto Three.js x/z; world position = `(x*3+1.5, _, z*3+1.5)`.
 - Facing: `"N" | "E" | "S" | "W"`. North = −z. Wall **faces** are named by the direction the face's *normal* points into the cell that sees it: a feature on the south wall of a corridor cell is attached to that cell with `face: "S"`.
-- Floor items sit at one of 5 sub-tile positions (`center`, or a quadrant — see `items[].slot` below), offset ±0.75 world units (`tileSize/4`) from the tile's center along both axes.
+- Floor items sit at one of 4 sub-tile quadrant positions (see `items[].slot` below), offset ±0.75 world units (`tileSize/4`) from the tile's center along both axes. No "center" slot: a center-slotted item was unreachable from any adjacent tile (always exactly 1 tile from a neighbor's own center, outside `PICKUP_RANGE_TILES`) and off-camera while standing on it — every quadrant has a near half reachable from next door.
 
 ## Schema (v1)
 
@@ -52,8 +52,11 @@ The level JSON is the shared contract between `apps/editor`, `apps/game`, `packa
   ],
 
   // Items lying on floor tiles (alcove items live in the feature above).
-  // "slot" is optional: "center" | "ne" | "se" | "nw" | "sw" — omitted = center.
-  // Up to 5 items can share one tile, one per slot.
+  // "slot" is optional: "ne" | "se" | "nw" | "sw" — omitted = a quadrant
+  // picked deterministically from the item's own id (packages/sim/src/level/query.ts's
+  // resolveItemSlot), so a slot-less item still resolves consistently and
+  // reaches every pickup-range check the same way every time.
+  // Up to 4 items can share one tile, one per quadrant.
   "items": [
     { "id": "itm_sword_1", "type": "shortsword", "x": 4, "z": 2 },
     { "id": "itm_bread_1", "type": "bread", "x": 6, "z": 6, "slot": "ne" },
@@ -100,7 +103,7 @@ Four modes, one grid. All four layers render at once for spatial context — ter
 
 - **Terrain mode:** paint tools — Floor, Wall, Void, Door, Secret Door, Start (keys 1–6). Click-drag paints; right-click erases to floor. Painting Door/Secret Door auto-creates a matching `doors[]` entry (auto id, sensible defaults); painting anything else over an existing door cell removes it — the grid and `doors[]` never drift apart. Clicking an already-painted door cell with the matching tool selects it for editing instead of no-op-repainting.
 - **Walls mode:** a tool palette like Terrain/Items/Features (M0.11 replaced an earlier click-to-cycle interaction once the option count grew to 7) — Auto, the 3 base looks, and the 3 pairwise transitions. Pick a tool, click a wall cell (`#`/`X`) to paint it; Auto clears the cell's `wallOverrides` entry back to the deterministic per-cell hash. A gold outline marks a cell with an authored override so it reads differently from the auto-pick at a glance.
-- **Items mode:** each floor cell exposes its 5 sub-tile slots (center + 4 corners, `docs/LEVELS.md` "Coordinates & facing"). Pick a type from the toolbar, click an empty slot to place it (auto id); click an occupied slot to select it for editing; right-click removes it.
+- **Items mode:** each floor cell exposes its 4 sub-tile quadrant slots (`docs/LEVELS.md` "Coordinates & facing" — no "center" slot). Pick a type from the toolbar, click an empty slot to place it (auto id); click an occupied slot to select it for editing; right-click removes it.
 - **Features mode:** floor cells bordering a wall/door render a small tick on each qualifying edge (matching `validate.ts`'s own `feature-face-no-wall` rule, so nothing placeable in the editor can ever fail that check). Pick a feature type, click an empty tick to place it, click an occupied one to edit, right-click removes it. The switch/lever form's targets checklist lists doors *and* alcove ids (M0.8's widened target resolution); the alcove form has a `hidden` checkbox and an add/remove item list; the inscription form is a text box.
 - **Property panel:** contextual — shows whatever's selected (door/item/feature/start), or level-wide `id`/`name` fields when nothing is selected.
 - **Live JSON pane:** two-way. Grid edits always re-serialize into it; typed edits apply back to the grid on demand (an explicit Apply/Revert pair, not parse-on-keystroke, so a mid-edit invalid JSON string doesn't fight the grid). `validateLevel()` runs on every render against the live level and lists every error inline — the same check the game trusts, so "the editor says it's clean" and "the game will load it" mean the same thing.

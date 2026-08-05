@@ -136,7 +136,6 @@ export const HP_DRAIN_PER_TICK_BY_STATUS = {
  * to know TILE_SIZE.
  */
 export const SLOT_OFFSET_TILES: Record<ItemSlot, { dx: number; dz: number }> = {
-  center: { dx: 0, dz: 0 },
   ne: { dx: 0.25, dz: -0.25 },
   se: { dx: 0.25, dz: 0.25 },
   nw: { dx: -0.25, dz: -0.25 },

@@ -108,7 +108,7 @@ export function placeItem(
   type: string,
 ): LevelJSON {
   const id = nextAutoId(level.items, "itm_");
-  const item: LevelItem = slot === "center" ? { id, type, x, z } : { id, type, x, z, slot };
+  const item: LevelItem = { id, type, x, z, slot };
   return { ...level, items: [...level.items, item] };
 }
 

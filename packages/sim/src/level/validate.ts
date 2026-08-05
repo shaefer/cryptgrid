@@ -1,6 +1,7 @@
 import { FACING_DELTA } from "../facing";
 import { WALL_VARIANT_IDS, type WallVariantId } from "../hash";
 import { ITEM_REGISTRY } from "../items/registry";
+import { resolveItemSlot } from "./query";
 import type { LevelJSON } from "./types";
 
 export interface ValidationError {
@@ -169,11 +170,12 @@ export function validateLevel(level: LevelJSON): ValidationError[] {
       });
     }
 
-    const slotKey = `${item.x},${item.z},${item.slot ?? "center"}`;
+    const resolvedSlot = resolveItemSlot(item);
+    const slotKey = `${item.x},${item.z},${resolvedSlot}`;
     if (seenSlots.has(slotKey)) {
       errors.push({
         code: "item-slot-collision",
-        message: `item "${item.id}" collides with another item at (${item.x},${item.z}) slot "${item.slot ?? "center"}"`,
+        message: `item "${item.id}" collides with another item at (${item.x},${item.z}) slot "${resolvedSlot}"`,
       });
     }
     seenSlots.add(slotKey);

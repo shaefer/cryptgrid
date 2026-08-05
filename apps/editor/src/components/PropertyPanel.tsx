@@ -1,4 +1,10 @@
-import { ITEM_REGISTRY, type Facing, type LevelJSON, type SwitchAction } from "@cryptgrid/sim";
+import {
+  ITEM_REGISTRY,
+  resolveItemSlot,
+  type Facing,
+  type LevelJSON,
+  type SwitchAction,
+} from "@cryptgrid/sim";
 import {
   addAlcoveItem,
   removeAlcoveItem,
@@ -102,7 +108,7 @@ export function PropertyPanel({ level, selection, onChange, onSelect, onMetaChan
       <div style={panel}>
         <div style={title}>Item — {item.id}</div>
         <div style={hint}>
-          ({item.x},{item.z}) · slot {item.slot ?? "center"}
+          ({item.x},{item.z}) · slot {resolveItemSlot(item)}
         </div>
         <label style={field}>
           <span style={label}>Type</span>

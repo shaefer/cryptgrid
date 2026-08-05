@@ -129,8 +129,11 @@ describe("validateLevel", () => {
 
   it("catches two items sharing the same tile and slot", () => {
     const level = baseLevel();
-    // it1 is already at (1,2) with no slot (defaults to "center").
-    level.items.push({ id: "it2", type: "torch", x: 1, z: 2 });
+    // it1 is already at (1,2) — give it an explicit slot so it2 can target
+    // the exact same one (a slot-less item's default is id-hashed, so it
+    // isn't guaranteed to collide with another slot-less item).
+    level.items[0]!.slot = "ne";
+    level.items.push({ id: "it2", type: "torch", x: 1, z: 2, slot: "ne" });
     const errors = validateLevel(level);
     expect(errors.some((e) => e.code === "item-slot-collision")).toBe(true);
   });

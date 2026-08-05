@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { autoWallVariant } from "../hash";
-import { findItemAt, findItemById, resolveWallVariant } from "./query";
+import { findItemAt, findItemById, resolveItemSlot, resolveWallVariant } from "./query";
 import type { LevelItem, LevelRuntime, WallOverride } from "./types";
 
 function levelWithItems(items: LevelItem[]): LevelRuntime {
@@ -25,18 +25,17 @@ function levelWithWallOverrides(overrides: WallOverride[]): LevelRuntime {
 describe("findItemAt", () => {
   it("returns undefined when nothing occupies that tile/slot", () => {
     const level = levelWithItems([]);
-    expect(findItemAt(level, 2, 2, "center")).toBeUndefined();
+    expect(findItemAt(level, 2, 2, "ne")).toBeUndefined();
   });
 
-  it("treats a missing slot as center", () => {
+  it("treats a missing slot as its id-hashed quadrant", () => {
     const item: LevelItem = { id: "itm_1", type: "bread", x: 2, z: 2 };
     const level = levelWithItems([item]);
-    expect(findItemAt(level, 2, 2, "center")).toEqual(item);
+    expect(findItemAt(level, 2, 2, resolveItemSlot(item))).toEqual(item);
   });
 
-  it("distinguishes all 5 slots on the same tile", () => {
+  it("distinguishes all 4 quadrant slots on the same tile", () => {
     const items: LevelItem[] = [
-      { id: "itm_center", type: "bread", x: 2, z: 2 },
       { id: "itm_ne", type: "torch", x: 2, z: 2, slot: "ne" },
       { id: "itm_se", type: "scroll", x: 2, z: 2, slot: "se" },
       { id: "itm_nw", type: "ironkey", x: 2, z: 2, slot: "nw" },
@@ -44,7 +43,6 @@ describe("findItemAt", () => {
     ];
     const level = levelWithItems(items);
 
-    expect(findItemAt(level, 2, 2, "center")?.id).toBe("itm_center");
     expect(findItemAt(level, 2, 2, "ne")?.id).toBe("itm_ne");
     expect(findItemAt(level, 2, 2, "se")?.id).toBe("itm_se");
     expect(findItemAt(level, 2, 2, "nw")?.id).toBe("itm_nw");
@@ -52,9 +50,28 @@ describe("findItemAt", () => {
   });
 
   it("does not match an item on a different tile", () => {
-    const item: LevelItem = { id: "itm_1", type: "bread", x: 2, z: 2 };
+    const item: LevelItem = { id: "itm_1", type: "bread", x: 2, z: 2, slot: "ne" };
     const level = levelWithItems([item]);
-    expect(findItemAt(level, 3, 2, "center")).toBeUndefined();
+    expect(findItemAt(level, 3, 2, "ne")).toBeUndefined();
+  });
+});
+
+describe("resolveItemSlot", () => {
+  it("returns the item's own slot when one is set", () => {
+    const item: LevelItem = { id: "itm_1", type: "bread", x: 0, z: 0, slot: "sw" };
+    expect(resolveItemSlot(item)).toBe("sw");
+  });
+
+  it("is deterministic for a slot-less item — same id, same quadrant every time", () => {
+    const item = { id: "itm_no_slot" };
+    expect(resolveItemSlot(item)).toBe(resolveItemSlot(item));
+  });
+
+  it("always resolves to one of the 4 quadrants, never falls outside ItemSlot", () => {
+    const quadrants = new Set(["ne", "se", "nw", "sw"]);
+    for (const id of ["a", "b", "c", "itm_x", "itm_y", "itm_z"]) {
+      expect(quadrants.has(resolveItemSlot({ id }))).toBe(true);
+    }
   });
 });
 

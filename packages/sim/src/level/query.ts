@@ -1,4 +1,4 @@
-import { autoWallVariant, type WallVariantId } from "../hash";
+import { autoWallVariant, stringHash, type WallVariantId } from "../hash";
 import type {
   AlcoveFeature,
   CellChar,
@@ -8,6 +8,18 @@ import type {
   LevelRuntime,
   WallFeature,
 } from "./types";
+
+const QUADRANT_SLOTS = ["ne", "se", "nw", "sw"] as const satisfies readonly ItemSlot[];
+
+/**
+ * A slot-less item picks a quadrant deterministically from its own id
+ * (mirrors the wall-variant/secret-tell hash pattern elsewhere) — same item
+ * always renders/reaches the same way, and un-slotted items scatter across
+ * quadrants instead of all landing in one spot.
+ */
+export function resolveItemSlot(item: Pick<LevelItem, "id" | "slot">): ItemSlot {
+  return item.slot ?? QUADRANT_SLOTS[stringHash(item.id) % QUADRANT_SLOTS.length]!;
+}
 
 export function cellCharAt(level: LevelRuntime, x: number, z: number): CellChar | undefined {
   if (x < 0 || z < 0 || x >= level.width || z >= level.height) return undefined;
@@ -32,7 +44,7 @@ export function findItemAt(
   z: number,
   slot: ItemSlot,
 ): LevelItem | undefined {
-  return level.items.find((item) => item.x === x && item.z === z && (item.slot ?? "center") === slot);
+  return level.items.find((item) => item.x === x && item.z === z && resolveItemSlot(item) === slot);
 }
 
 export function findItemById(level: LevelRuntime, id: string): LevelItem | undefined {

@@ -92,10 +92,6 @@ describe("sharedCarryCapacity", () => {
 });
 
 describe("pickupDistance / PICKUP_RANGE_TILES", () => {
-  it("is zero at a center-slotted item on the party's own tile", () => {
-    expect(pickupDistance(1, 1, 1, 1, "center")).toBe(0);
-  });
-
   it("keeps every quadrant slot on the party's own tile within range", () => {
     for (const slot of ["ne", "se", "nw", "sw"] as const) {
       expect(pickupDistance(1, 1, 1, 1, slot)).toBeLessThan(PICKUP_RANGE_TILES);
@@ -108,12 +104,6 @@ describe("pickupDistance / PICKUP_RANGE_TILES", () => {
 
   it("puts the far-half quadrant slot of an adjacent tile out of range", () => {
     expect(pickupDistance(1, 1, 2, 1, "se")).toBeGreaterThan(PICKUP_RANGE_TILES);
-  });
-
-  it("puts a center-slotted item on an adjacent tile out of range", () => {
-    // Exactly 1 tile away — neither clearly "near" nor "far" half, so the
-    // tighter reading (out of reach) wins.
-    expect(pickupDistance(1, 1, 2, 1, "center")).toBeGreaterThan(PICKUP_RANGE_TILES);
   });
 });
 

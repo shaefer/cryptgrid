@@ -66,15 +66,22 @@ export interface InscriptionFeature extends WallFeatureBase {
 
 export type WallFeature = SwitchFeature | LeverFeature | AlcoveFeature | InscriptionFeature;
 
-/** Sub-tile position within a floor cell — up to 5 items can share one tile, one per slot. */
-export type ItemSlot = "center" | "ne" | "se" | "nw" | "sw";
+/**
+ * Sub-tile position within a floor cell — up to 4 items can share one tile,
+ * one per quadrant. No "center": a center-slotted item was unreachable from
+ * any adjacent tile (always exactly 1 tile from a neighbor's own center,
+ * outside PICKUP_RANGE_TILES) and invisible/off-camera while standing on it
+ * (docs/ROADMAP.md M0.11's own CAMERA_PITCH_DEG note) — every quadrant, by
+ * contrast, has a near half reachable from next door.
+ */
+export type ItemSlot = "ne" | "se" | "nw" | "sw";
 
 export interface LevelItem {
   id: string;
   type: string;
   x: number;
   z: number;
-  /** Omitted = "center". */
+  /** Omitted = level/query.ts's resolveItemSlot picks a quadrant deterministically from the item's own id. */
   slot?: ItemSlot;
 }
 

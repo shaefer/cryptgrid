@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { pickupDistance, PICKUP_RANGE_TILES, type GameState } from "@cryptgrid/sim";
+import { pickupDistance, PICKUP_RANGE_TILES, resolveItemSlot, type GameState } from "@cryptgrid/sim";
 import type { FeatureViews } from "../scene/features";
 import type { ItemSprites } from "../scene/items";
 
@@ -69,8 +69,6 @@ export class HoverHighlighter {
     const { party, level } = this.ctx.getState();
     const item = level.items.find((i) => i.id === itemId);
     if (!item) return false;
-    return (
-      pickupDistance(party.x, party.z, item.x, item.z, item.slot ?? "center") <= PICKUP_RANGE_TILES
-    );
+    return pickupDistance(party.x, party.z, item.x, item.z, resolveItemSlot(item)) <= PICKUP_RANGE_TILES;
   }
 }
