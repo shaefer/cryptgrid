@@ -10,15 +10,15 @@ import {
 } from "@cryptgrid/sim";
 import {
   cellAt,
-  cycleWallOverride,
   paintTerrain,
   placeFeature,
   placeItem,
   removeFeature,
   removeItem,
   setStart,
+  setWallOverride,
 } from "../levelDraft";
-import type { FeatureTool, Mode, Selection, TerrainTool } from "../types";
+import type { FeatureTool, Mode, Selection, TerrainTool, WallTool } from "../types";
 
 const CELL_PX = 36;
 
@@ -33,7 +33,10 @@ const TERRAIN_COLOR: Record<string, string> = {
 const WALL_VARIANT_TINT: Record<WallVariantId, string> = {
   stone: "#5a5d64",
   fieldstone: "#5d574d",
-  hewn: "#44474d",
+  thinbrick: "#6b4a3f",
+  "stone-fieldstone": "#787060",
+  "stone-thinbrick": "#7a6058",
+  "fieldstone-thinbrick": "#7a5f4f",
 };
 
 const FEATURE_COLOR: Record<string, string> = {
@@ -62,6 +65,7 @@ export interface GridCanvasProps {
   terrainTool: TerrainTool;
   itemTool: string;
   featureTool: FeatureTool;
+  wallTool: WallTool;
   selection: Selection | null;
   onSelect: (selection: Selection | null) => void;
   onChange: (next: LevelJSON) => void;
@@ -80,6 +84,7 @@ export function GridCanvas({
   terrainTool,
   itemTool,
   featureTool,
+  wallTool,
   selection,
   onSelect,
   onChange,
@@ -122,7 +127,7 @@ export function GridCanvas({
     if (mode !== "walls") return;
     const ch = cellAt(level, x, z);
     if (ch !== "#" && ch !== "X") return;
-    onChange(cycleWallOverride(level, x, z));
+    onChange(setWallOverride(level, x, z, wallTool === "auto" ? null : wallTool));
   };
 
   const onSlotClick = (x: number, z: number, slot: string, event: React.MouseEvent) => {

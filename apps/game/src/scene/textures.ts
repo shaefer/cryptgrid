@@ -1,10 +1,11 @@
 import * as THREE from "three";
 import type { WallVariantId } from "@cryptgrid/sim";
 
-/** One wall look + its matching secret-switch tell — never mix pairs across looks (ASSETS.md). */
+/** One wall look + its own secret-tell variants — never mix tells across looks (ASSETS.md). */
 export interface WallVariant {
   base: THREE.Texture;
-  secretSwitch: THREE.Texture;
+  /** A switch deterministically picks one by its own id (packages/sim stringHash). Empty for transition variants. */
+  secretTells: THREE.Texture[];
 }
 
 export interface DungeonTextures {
@@ -34,11 +35,17 @@ export async function loadDungeonTextures(): Promise<DungeonTextures> {
 
   const [
     wallStone,
-    wallStoneSecret,
+    wallStoneConspicuous,
+    wallStoneSubtle,
     wallFieldstone,
-    wallFieldstoneSecret,
-    wallHewn,
-    wallHewnSecret,
+    wallFieldstoneConspicuous,
+    wallFieldstoneSubtle,
+    wallThinbrick,
+    wallThinbrickConspicuous,
+    wallThinbrickSubtle,
+    wallStoneFieldstone,
+    wallStoneThinbrick,
+    wallFieldstoneThinbrick,
     alcoveBack,
     floor,
     ceiling,
@@ -49,11 +56,17 @@ export async function loadDungeonTextures(): Promise<DungeonTextures> {
     featureLeverOn,
   ] = await Promise.all([
     load("wall_stone"),
-    load("wall_stone_secretbrick"),
+    load("wall_stone_secret_conspicuous"),
+    load("wall_stone_secret_subtle"),
     load("wall_fieldstone"),
-    load("wall_fieldstone_secretbrick"),
-    load("wall_hewn"),
-    load("wall_hewn_secretbrick"),
+    load("wall_fieldstone_secret_conspicuous"),
+    load("wall_fieldstone_secret_subtle"),
+    load("wall_thinbrick"),
+    load("wall_thinbrick_secret_conspicuous"),
+    load("wall_thinbrick_secret_subtle"),
+    load("wall_stone-fieldstone"),
+    load("wall_stone-thinbrick"),
+    load("wall_fieldstone-thinbrick"),
     load("wall_alcove_back"),
     load("floor_stone"),
     load("ceiling_stone"),
@@ -66,9 +79,12 @@ export async function loadDungeonTextures(): Promise<DungeonTextures> {
 
   return {
     wallVariants: {
-      stone: { base: wallStone, secretSwitch: wallStoneSecret },
-      fieldstone: { base: wallFieldstone, secretSwitch: wallFieldstoneSecret },
-      hewn: { base: wallHewn, secretSwitch: wallHewnSecret },
+      stone: { base: wallStone, secretTells: [wallStoneConspicuous, wallStoneSubtle] },
+      fieldstone: { base: wallFieldstone, secretTells: [wallFieldstoneConspicuous, wallFieldstoneSubtle] },
+      thinbrick: { base: wallThinbrick, secretTells: [wallThinbrickConspicuous, wallThinbrickSubtle] },
+      "stone-fieldstone": { base: wallStoneFieldstone, secretTells: [] },
+      "stone-thinbrick": { base: wallStoneThinbrick, secretTells: [] },
+      "fieldstone-thinbrick": { base: wallFieldstoneThinbrick, secretTells: [] },
     },
     alcoveBack,
     floor,

@@ -144,15 +144,21 @@ describe("validateLevel", () => {
 
   it("accepts a wall texture override on an actual wall cell", () => {
     const level = baseLevel();
-    level.wallOverrides = [{ x: 0, z: 0, variant: "hewn" }];
+    level.wallOverrides = [{ x: 0, z: 0, variant: "thinbrick" }];
     expect(validateLevel(level)).toEqual([]);
   });
 
   it("catches a wall texture override on a non-wall cell", () => {
     const level = baseLevel();
-    level.wallOverrides = [{ x: 1, z: 1, variant: "hewn" }]; // floor, not wall
+    level.wallOverrides = [{ x: 1, z: 1, variant: "thinbrick" }]; // floor, not wall
     const errors = validateLevel(level);
     expect(errors.some((e) => e.code === "wall-override-not-wall")).toBe(true);
+  });
+
+  it("accepts a transition wall variant as a valid override", () => {
+    const level = baseLevel();
+    level.wallOverrides = [{ x: 0, z: 0, variant: "stone-fieldstone" }];
+    expect(validateLevel(level)).toEqual([]);
   });
 
   it("catches an unknown wall variant id", () => {
@@ -166,7 +172,7 @@ describe("validateLevel", () => {
   it("catches two overrides authored for the same cell", () => {
     const level = baseLevel();
     level.wallOverrides = [
-      { x: 0, z: 0, variant: "hewn" },
+      { x: 0, z: 0, variant: "thinbrick" },
       { x: 0, z: 0, variant: "fieldstone" },
     ];
     const errors = validateLevel(level);

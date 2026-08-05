@@ -217,6 +217,29 @@
       #toast[hidden] {
         display: none;
       }
+      #held-item-cursor {
+        position: fixed;
+        left: 0;
+        top: 0;
+        display: flex;
+        gap: 4px;
+        pointer-events: none;
+        z-index: 20;
+      }
+      #held-item-cursor[hidden] {
+        display: none;
+      }
+      .held-item-icon {
+        width: 32px;
+        height: 32px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
+      }
+      .held-item-icon[hidden] {
+        display: none;
+      }
       .rune-panel {
         position: fixed;
         right: 12px;

@@ -15,28 +15,38 @@ Technique per texture — layered and cheap but effective:
 1. Base coat: two-tone noise (value noise, seeded) in the palette below.
 2. **Brick/block pattern:** offset courses of rectangles with 4–6px dark mortar gaps; per-brick value jitter ±8%; 1px highlight top edge / shadow bottom edge for fake relief.
 3. Grunge pass: low-opacity splotch noise + a few cracks (random walk lines).
-4. Wrap-check: script renders each texture 2×2 tiled into `assets/textures/_preview/` — eyeball these; seams are the #1 quality killer.
+4. **Atmosphere pass (M0.11):** moss colonies biased toward mortar joints (`moss()`, clustered, not uniform scatter) + faint downward water-stain streaks (`streaks()`) — from a moss/grime reference screenshot, applied to all 3 base wall types.
+5. Wrap-check: script renders each texture 2×2 tiled into `assets/textures/_preview/` — eyeball these; seams are the #1 quality killer.
 
-### Required set (M0)
+### 3 wall types + 3 transitions (M0.11)
+
+Redesigned from M0.8's set after review found the 3 original textures (picked per-cell by an unrelated random hash) never actually blended at their boundaries. Now: 3 deliberately different types, each with its own identity, plus a dedicated single-wall-width transition texture for every pairing — editor-authored via `wallOverrides` (see LEVELS.md), not auto-inserted by the per-cell hash.
 
 | File | Notes |
 |---|---|
-| `wall_stone.png` | Default wall (ashlar — fine cut blocks). Large blocks, cool grey `#5a5f66` range |
-| `wall_stone_secretbrick.png` | Same, one brick subtly proud/offset + hairline shadow — the secret switch tell. Subtle! Find-able at torchlight, not billboard-obvious. Generated since M0.3, unused until M0.8 |
-| `wall_fieldstone.png` | 2nd wall type — irregular, organic block variation (M0.8) |
-| `wall_fieldstone_secretbrick.png` | `wall_fieldstone`'s own secret tell — never reuse `wall_stone`'s (M0.8) |
-| `wall_hewn.png` | 3rd wall type — rough-hewn, darker, heavier grunge/cracks (M0.8) |
-| `wall_hewn_secretbrick.png` | `wall_hewn`'s own secret tell (M0.8) |
-| `wall_alcove_back.png` | Darker recessed variant. Generated since M0.3, unused until M0.8 |
+| `wall_stone.png` | 1st type — the original clean ashlar brick. Cool grey |
+| `wall_fieldstone.png` | 2nd type — irregular field stone (`shiftPx` broken coursing) — deliberately easy to hide a loose-stone secret in, since the coursing is already irregular everywhere |
+| `wall_thinbrick.png` | 3rd type — irregular thin brick (not big slabs — replaces the retired `wall_hewn`). 64×16px module, both divide 512 evenly so it self-tiles top-to-bottom too |
+| `wall_stone-fieldstone.png`, `wall_stone-thinbrick.png`, `wall_fieldstone-thinbrick.png` | The 3 pairwise transitions — a horizontal cross-fade between two full renders plus a darker wobbly "patched mortar" seam band down the middle |
+| `wall_alcove_back.png` | Darker recessed variant, used for revealed-alcove niches |
 | `floor_stone.png` | Smaller flagstones, slightly warmer, heavier grime |
 | `ceiling_stone.png` | Rough-hewn, darkest of the set |
 | `door_portcullis.png` | Iron bars on transparent background |
 | `door_secret.png` | = wall_stone with faint seam cross |
-| `feature_lever.png`, `feature_lever_on.png`, `feature_switch.png` | Wall-mounted, transparent bg. Lever ships as two frames (handle up = off, down = on); the renderer swaps textures on toggle. Required since M0.3, actually generated in M0.8 |
+| `feature_lever.png`, `feature_lever_on.png`, `feature_switch.png` | Wall-mounted, transparent bg. Lever ships as two frames (handle up = off, down = on); the renderer swaps textures on toggle |
 
-Every M0.8 wall type gets its **own** `_secretbrick` pairing (docs/ROADMAP.md M0.8) — a secret switch always blends with whichever stone actually surrounds it, so three wall types means three independent tells, not one tell reused across three backgrounds.
+### Secret tells: 2 per wall type (M0.11)
 
-Palette: stone `#4a4e55–#6b7078`, mortar `#2e3136`, warm torch grime `#5c4a3a` accents, iron `#3a3d42`. Fog/background `#0d0e12`.
+Each of the 3 base types ships **2** tell variants, built from a reference screenshot of a conspicuous vs. a subtle secret:
+
+| File | Notes |
+|---|---|
+| `wall_<type>_secret_conspicuous.png` | A hard-edged, keyhole/slot-shaped dark recess carved into one brick, with an inner-shadow gradient and a highlight lip — a deliberate architectural detail once you're looking at that brick, not obvious from a glance |
+| `wall_<type>_secret_subtle.png` | A small irregular dark blob blended with the type's own grunge/moss noise — genuinely hard to distinguish from ordinary wear without close, deliberate inspection |
+
+A switch deterministically picks one of its wall type's tells from its own feature id (`stringHash`, `packages/sim/src/hash.ts`) — same switch always renders the same way, and across a level roughly half read as carved-recess, half as grunge-blend. Transition textures have no tells of their own (switches aren't meant to sit on a transition cell). This replaces M0.8's single `_secretbrick` proud-brick tell per type.
+
+Palette: stone `#4a4e55–#6b7078`, mortar `#2e3136`, warm torch grime `#5c4a3a` accents, iron `#3a3d42`, moss `#4a5c3a`, water stain `#181d16`. Fog/background `#0d0e12`.
 
 ## Wave 1: item sprites & rune glyphs
 
@@ -53,11 +63,17 @@ Palette: stone `#4a4e55–#6b7078`, mortar `#2e3136`, warm torch grime `#5c4a3a`
 | File | Origin |
 |---|---|
 | `assets/textures/wall_stone.png` | `generated:tools/gen-textures/generate.mjs` |
-| `assets/textures/wall_stone_secretbrick.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_stone_secret_conspicuous.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_stone_secret_subtle.png` | `generated:tools/gen-textures/generate.mjs` |
 | `assets/textures/wall_fieldstone.png` | `generated:tools/gen-textures/generate.mjs` |
-| `assets/textures/wall_fieldstone_secretbrick.png` | `generated:tools/gen-textures/generate.mjs` |
-| `assets/textures/wall_hewn.png` | `generated:tools/gen-textures/generate.mjs` |
-| `assets/textures/wall_hewn_secretbrick.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_fieldstone_secret_conspicuous.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_fieldstone_secret_subtle.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_thinbrick.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_thinbrick_secret_conspicuous.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_thinbrick_secret_subtle.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_stone-fieldstone.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_stone-thinbrick.png` | `generated:tools/gen-textures/generate.mjs` |
+| `assets/textures/wall_fieldstone-thinbrick.png` | `generated:tools/gen-textures/generate.mjs` |
 | `assets/textures/wall_alcove_back.png` | `generated:tools/gen-textures/generate.mjs` |
 | `assets/textures/feature_switch.png` | `generated:tools/gen-textures/generate.mjs` |
 | `assets/textures/feature_lever.png` | `generated:tools/gen-textures/generate.mjs` |

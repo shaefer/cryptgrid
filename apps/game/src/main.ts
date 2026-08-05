@@ -11,12 +11,14 @@ import {
   type LevelJSON,
 } from "@cryptgrid/sim";
 import { CharacterSheet } from "./hud/characterSheet";
+import { HeldItemCursor } from "./hud/heldItemCursor";
 import { loadRuneGlyphs, RunePanel } from "./hud/runePanel";
 import { VitalsHud } from "./hud/vitalsHud";
 import { ActiveCharacterController } from "./input/activeCharacterController";
 import { InteractionInput } from "./input/interactionInput";
 import { KeyboardInput } from "./input/keyboard";
 import { SheetController } from "./input/sheetController";
+import { HoverHighlighter } from "./render/hoverHighlighter";
 import { PartyView } from "./render/partyView";
 import { ProjectileViews } from "./render/projectileViews";
 import { buildLevel } from "./scene/buildLevel";
@@ -116,6 +118,7 @@ async function main(): Promise<void> {
 
   const activeCharacter = new ActiveCharacterController();
   activeCharacter.attach(window);
+  const heldItemCursor = new HeldItemCursor();
 
   let consumeCommand: Command | null = null;
   const characterSheet = new CharacterSheet(characterSheetEl, (characterId, itemId) => {
@@ -159,10 +162,20 @@ async function main(): Promise<void> {
   });
   interactionInput.attach(window);
 
+  const hoverHighlighter = new HoverHighlighter({
+    camera,
+    canvas: renderer.domElement,
+    itemSprites,
+    featureViews,
+    getState: () => state,
+  });
+  hoverHighlighter.attach(window);
+
   const updateHud = (): void => {
     hud.textContent = `${level.name} — (${state.party.x},${state.party.z}) facing ${state.party.facing}   ·   WASD move · QE turn · click/F touch · right-click stow · C cast`;
     vitalsHud.update(state.party.members, activeCharacter.active);
     runePanel.update(state, state.party.members[activeCharacter.active]?.id ?? null);
+    heldItemCursor.update(state.party.members[activeCharacter.active] ?? null);
     const openIndex = sheetController.openIndex;
     if (openIndex !== null) characterSheet.render(openIndex, state.party);
   };
@@ -232,6 +245,7 @@ async function main(): Promise<void> {
     partyView.update(nowMs);
     doorViews.update(nowMs);
     projectileViews.update(nowMs);
+    hoverHighlighter.update();
 
     // Light spell: brighter, farther torch while the boost holds (M0.9).
     const lightBoosted = state.party.lightBoostUntil > state.tick;

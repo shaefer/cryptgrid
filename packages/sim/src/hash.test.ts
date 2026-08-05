@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { autoWallVariant, cellHash, WALL_VARIANT_IDS, wallVariantIndex } from "./hash";
+import {
+  autoWallVariant,
+  BASE_WALL_VARIANT_IDS,
+  cellHash,
+  stringHash,
+  TRANSITION_WALL_VARIANT_IDS,
+  WALL_VARIANT_IDS,
+  wallVariantIndex,
+} from "./hash";
 
 describe("cellHash", () => {
   it("returns the same result on repeated calls for the same cell", () => {
@@ -51,16 +59,52 @@ describe("wallVariantIndex", () => {
   });
 });
 
+describe("BASE_WALL_VARIANT_IDS / TRANSITION_WALL_VARIANT_IDS / WALL_VARIANT_IDS", () => {
+  it("has exactly 3 base looks and 3 pairwise transitions", () => {
+    expect(BASE_WALL_VARIANT_IDS).toHaveLength(3);
+    expect(TRANSITION_WALL_VARIANT_IDS).toHaveLength(3);
+  });
+
+  it("WALL_VARIANT_IDS is the concatenation of both, 6 total, no overlap", () => {
+    expect(WALL_VARIANT_IDS).toHaveLength(6);
+    expect(WALL_VARIANT_IDS).toEqual([...BASE_WALL_VARIANT_IDS, ...TRANSITION_WALL_VARIANT_IDS]);
+    const overlap = BASE_WALL_VARIANT_IDS.filter((id) =>
+      (TRANSITION_WALL_VARIANT_IDS as readonly string[]).includes(id),
+    );
+    expect(overlap).toEqual([]);
+  });
+});
+
 describe("autoWallVariant", () => {
-  it("always returns one of the 3 canonical variant ids", () => {
+  it("always returns one of the 3 base variant ids — never a transition", () => {
     for (let x = 0; x < 10; x++) {
       for (let z = 0; z < 10; z++) {
-        expect(WALL_VARIANT_IDS).toContain(autoWallVariant(x, z));
+        expect(BASE_WALL_VARIANT_IDS).toContain(autoWallVariant(x, z));
       }
     }
   });
 
-  it("matches wallVariantIndex's pick by position in WALL_VARIANT_IDS", () => {
-    expect(autoWallVariant(5, 5)).toBe(WALL_VARIANT_IDS[wallVariantIndex(5, 5, 3)]);
+  it("matches wallVariantIndex's pick by position in BASE_WALL_VARIANT_IDS", () => {
+    expect(autoWallVariant(5, 5)).toBe(BASE_WALL_VARIANT_IDS[wallVariantIndex(5, 5, 3)]);
+  });
+});
+
+describe("stringHash", () => {
+  it("returns the same result on repeated calls for the same string", () => {
+    expect(stringHash("sw_hidden1")).toBe(stringHash("sw_hidden1"));
+  });
+
+  it("distinguishes different strings", () => {
+    expect(stringHash("sw_hidden1")).not.toBe(stringHash("sw_hidden2"));
+  });
+
+  it("returns a non-negative integer", () => {
+    const h = stringHash("anything");
+    expect(Number.isInteger(h)).toBe(true);
+    expect(h).toBeGreaterThanOrEqual(0);
+  });
+
+  it("handles the empty string without throwing", () => {
+    expect(() => stringHash("")).not.toThrow();
   });
 });

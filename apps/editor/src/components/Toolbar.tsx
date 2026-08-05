@@ -1,5 +1,5 @@
 import { ITEM_REGISTRY } from "@cryptgrid/sim";
-import type { FeatureTool, Mode, TerrainTool } from "../types";
+import type { FeatureTool, Mode, TerrainTool, WallTool } from "../types";
 
 const TERRAIN_TOOLS: { tool: TerrainTool; label: string; key: string }[] = [
   { tool: ".", label: "Floor", key: "1" },
@@ -8,6 +8,16 @@ const TERRAIN_TOOLS: { tool: TerrainTool; label: string; key: string }[] = [
   { tool: "D", label: "Door", key: "4" },
   { tool: "S", label: "Secret Door", key: "5" },
   { tool: "start", label: "Start", key: "6" },
+];
+
+const WALL_TOOLS: { tool: WallTool; label: string }[] = [
+  { tool: "auto", label: "Auto" },
+  { tool: "stone", label: "Stone" },
+  { tool: "fieldstone", label: "Fieldstone" },
+  { tool: "thinbrick", label: "Thin brick" },
+  { tool: "stone-fieldstone", label: "Trans: Stone↔Fieldstone" },
+  { tool: "stone-thinbrick", label: "Trans: Stone↔Thinbrick" },
+  { tool: "fieldstone-thinbrick", label: "Trans: Fieldstone↔Thinbrick" },
 ];
 
 const FEATURE_TOOLS: { tool: FeatureTool; label: string }[] = [
@@ -33,6 +43,8 @@ export interface ToolbarProps {
   onItemToolChange: (type: string) => void;
   featureTool: FeatureTool;
   onFeatureToolChange: (tool: FeatureTool) => void;
+  wallTool: WallTool;
+  onWallToolChange: (tool: WallTool) => void;
 }
 
 function button(active: boolean): React.CSSProperties {
@@ -58,6 +70,8 @@ export function Toolbar({
   onItemToolChange,
   featureTool,
   onFeatureToolChange,
+  wallTool,
+  onWallToolChange,
 }: ToolbarProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, width: 180 }}>
@@ -89,7 +103,12 @@ export function Toolbar({
       {mode === "walls" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={sectionLabel}>Wall texture</div>
-          <div style={hint}>Click a wall cell to cycle: Auto → Stone → Fieldstone → Hewn → Auto.</div>
+          {WALL_TOOLS.map(({ tool, label }) => (
+            <button key={tool} style={button(wallTool === tool)} onClick={() => onWallToolChange(tool)}>
+              {label}
+            </button>
+          ))}
+          <div style={hint}>Click a wall cell to paint · Auto clears back to the deterministic per-cell pick</div>
         </div>
       )}
 

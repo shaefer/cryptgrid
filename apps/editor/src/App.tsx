@@ -6,7 +6,7 @@ import { JsonPane } from "./components/JsonPane";
 import { PropertyPanel } from "./components/PropertyPanel";
 import { Toolbar } from "./components/Toolbar";
 import { createBlankLevel } from "./levelDraft";
-import type { FeatureTool, Mode, Selection, TerrainTool } from "./types";
+import type { FeatureTool, Mode, Selection, TerrainTool, WallTool } from "./types";
 
 const STORAGE_KEY = "cryptgrid-editor-level";
 
@@ -28,6 +28,7 @@ export function App() {
   const [terrainTool, setTerrainTool] = useState<TerrainTool>("#");
   const [itemTool, setItemTool] = useState("torch");
   const [featureTool, setFeatureTool] = useState<FeatureTool>("switch");
+  const [wallTool, setWallTool] = useState<WallTool>("stone");
   const [selection, setSelection] = useState<Selection | null>(null);
 
   // Captured synchronously during the initial render, before any effect can
@@ -74,6 +75,8 @@ export function App() {
           onItemToolChange={setItemTool}
           featureTool={featureTool}
           onFeatureToolChange={setFeatureTool}
+          wallTool={wallTool}
+          onWallToolChange={setWallTool}
         />
 
         <div style={{ overflow: "auto", border: "1px solid #3a3d42", borderRadius: 4 }}>
@@ -83,6 +86,7 @@ export function App() {
             terrainTool={terrainTool}
             itemTool={itemTool}
             featureTool={featureTool}
+            wallTool={wallTool}
             selection={selection}
             onSelect={setSelection}
             onChange={setLevel}

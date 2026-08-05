@@ -73,7 +73,14 @@ export function buildLevel(
   level: LevelRuntime,
   textures: DungeonTextures,
 ): BuildResult {
-  const variantFaces: Record<WallVariantId, BoundaryFace[]> = { stone: [], fieldstone: [], hewn: [] };
+  const variantFaces: Record<WallVariantId, BoundaryFace[]> = {
+    stone: [],
+    fieldstone: [],
+    thinbrick: [],
+    "stone-fieldstone": [],
+    "stone-thinbrick": [],
+    "fieldstone-thinbrick": [],
+  };
   const doorFaces = new Map<string, BoundaryFace[]>();
   const featureFaces = new Map<string, BoundaryFace>();
   const floorCells: { x: number; z: number }[] = [];

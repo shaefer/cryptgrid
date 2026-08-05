@@ -1,17 +1,24 @@
 import * as THREE from "three";
 import {
   resolveWallVariant,
+  stringHash,
   type AlcoveItem,
   type LevelRuntime,
   type SimEvent,
 } from "@cryptgrid/sim";
 import { TILE_SIZE, WALL_HEIGHT, type BoundaryFace } from "./buildLevel";
+import { itemVisualScale } from "./itemVisuals";
 import type { ItemTextures } from "./itemTextures";
 import type { DungeonTextures } from "./textures";
 
 const NICHE_DEPTH = 0.6;
-const ALCOVE_ITEM_SIZE = 0.55;
+/** Just proud of the shelf plane — avoids z-fighting without floating visibly. */
+const ALCOVE_ITEM_Y_OFFSET = 0.015;
 const OVERLAY_OFFSET = 0.03; // proud of the wall so it never z-fights
+
+/** Hover-only secret-switch tell (docs/ROADMAP.md M0.11) — no persistent "discovered" state. */
+const SECRET_SWITCH_HOVER_EMISSIVE = 0xffe066;
+const SECRET_SWITCH_HOVER_INTENSITY = 0.18;
 /**
  * Shelf height in niche-local space (group origin is at WALL_HEIGHT/2) —
  * ~0.95 world units up. Calibrated so a shelf item straddles the F-key's
@@ -29,7 +36,7 @@ interface AlcoveView {
   /** null while hidden — the placeholder wall face stands in for the niche. */
   niche: THREE.Group | null;
   hiddenFace: THREE.Mesh | null;
-  itemSprites: Map<string, THREE.Sprite>;
+  itemMeshes: Map<string, THREE.Mesh>;
 }
 
 function faceGroupAt(face: BoundaryFace): THREE.Group {
@@ -45,7 +52,7 @@ function faceGroupAt(face: BoundaryFace): THREE.Group {
  * 3D for the first time). A hidden alcove renders an ordinary wall face using
  * its cell's own variant hash — no tell of its own, only switches get one —
  * until `update()` sees the sim flip `hidden` and swaps in the recessed niche.
- * Alcove item sprites reconcile against sim state the same way ItemSprites
+ * Alcove item meshes reconcile against sim state the same way ItemSprites
  * does for floor items.
  */
 export class FeatureViews {
@@ -54,6 +61,8 @@ export class FeatureViews {
   private readonly alcoves = new Map<string, AlcoveView>();
   private readonly leverMeshes = new Map<string, THREE.Mesh>();
   private readonly leverOn = new Map<string, boolean>();
+  private readonly secretSwitchMeshes = new Map<string, THREE.Mesh>();
+  private hoveredSwitchId: string | null = null;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -77,7 +86,7 @@ export class FeatureViews {
           face: claimedFace,
           niche: null,
           hiddenFace: null,
-          itemSprites: new Map(),
+          itemMeshes: new Map(),
         };
         this.alcoves.set(feature.id, view);
         if (feature.hidden) {
@@ -140,21 +149,55 @@ export class FeatureViews {
 
   /**
    * The full-size wall face a secret switch hides in — its cell's own variant,
-   * but the variant's dedicated secretSwitch texture: the tell always blends
-   * with the stone that actually surrounds it (ASSETS.md).
+   * but one of that variant's dedicated tell textures (conspicuous carved-recess
+   * or subtle grunge-blend, docs/ROADMAP.md M0.11): the tell always blends with
+   * the stone that actually surrounds it (ASSETS.md), and which of the variant's
+   * tells this particular switch gets is deterministic from its own id — same
+   * switch always renders the same way. Falls back to the plain `base` texture
+   * if the cell resolved to a transition variant (no tells of its own — an
+   * authoring mistake, not a case worth a hard validate.ts error over).
    */
   private buildSecretSwitchFace(featureId: string, face: BoundaryFace): void {
     const variantId = resolveWallVariant(this.level, face.wallCellX, face.wallCellZ);
     const variant = this.textures.wallVariants[variantId];
+    const tells = variant.secretTells;
+    const tellTexture = tells.length > 0 ? tells[stringHash(featureId) % tells.length]! : variant.base;
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(TILE_SIZE, WALL_HEIGHT),
-      new THREE.MeshStandardMaterial({ map: variant.secretSwitch, roughness: 0.95 }),
+      new THREE.MeshStandardMaterial({ map: tellTexture, roughness: 0.95 }),
     );
     mesh.position.copy(face.position);
     mesh.rotation.set(0, face.rotationY, 0);
     mesh.userData.entityId = featureId;
     mesh.userData.entityKind = "interact" satisfies EntityKind;
+    mesh.userData.secretSwitch = true; // hoverHighlighter.ts's cue to distinguish from ordinary switches/levers
+    this.secretSwitchMeshes.set(featureId, mesh);
     this.interactiveGroup.add(mesh);
+  }
+
+  /**
+   * Toggles the hover-only light-yellow tell on at most one secret switch at
+   * a time — the hover highlighter (render/hoverHighlighter.ts) calls this
+   * once per frame with whichever secret-switch face the reticle is
+   * currently over, or null. No sim state, no persistence: purely "is the
+   * player looking at it right now."
+   */
+  setHoveredSwitch(featureId: string | null): void {
+    if (featureId === this.hoveredSwitchId) return;
+    const previous = this.hoveredSwitchId
+      ? this.secretSwitchMeshes.get(this.hoveredSwitchId)
+      : undefined;
+    if (previous) {
+      const material = previous.material as THREE.MeshStandardMaterial;
+      material.emissiveIntensity = 0;
+    }
+    const next = featureId ? this.secretSwitchMeshes.get(featureId) : undefined;
+    if (next) {
+      const material = next.material as THREE.MeshStandardMaterial;
+      material.emissive.set(SECRET_SWITCH_HOVER_EMISSIVE);
+      material.emissiveIntensity = SECRET_SWITCH_HOVER_INTENSITY;
+    }
+    this.hoveredSwitchId = featureId;
   }
 
   /** A hidden alcove is just wall: its cell's base variant, no entity tag, nothing to find by clicking. */
@@ -220,6 +263,12 @@ export class FeatureViews {
     this.interactiveGroup.add(group);
   }
 
+  /**
+   * Alcove items get the same flat-ground-plane treatment as floor items
+   * (docs/ROADMAP.md M0.11) — a quad lying on the shelf's own horizontal
+   * plane in the niche's locally-rotated frame, not a camera-facing sprite,
+   * so it reads as actually resting on the shelf from any viewing angle.
+   */
   private reconcileAlcoveItems(view: AlcoveView, items: readonly AlcoveItem[]): void {
     const group = view.niche;
     if (!group) return;
@@ -227,29 +276,38 @@ export class FeatureViews {
     const seen = new Set<string>();
     items.forEach((item, i) => {
       seen.add(item.id);
-      let sprite = view.itemSprites.get(item.id);
-      if (!sprite) {
-        sprite = new THREE.Sprite(
-          new THREE.SpriteMaterial({ map: this.itemTextures[item.type] ?? null, transparent: true }),
+      let mesh = view.itemMeshes.get(item.id);
+      if (!mesh) {
+        const geometry = new THREE.PlaneGeometry(1, 1);
+        geometry.rotateX(-Math.PI / 2);
+        mesh = new THREE.Mesh(
+          geometry,
+          new THREE.MeshStandardMaterial({
+            map: this.itemTextures[item.type] ?? null,
+            transparent: true,
+            roughness: 0.9,
+          }),
         );
-        sprite.scale.set(ALCOVE_ITEM_SIZE, ALCOVE_ITEM_SIZE, 1);
-        sprite.userData.entityId = item.id;
-        sprite.userData.entityKind = "alcove-item" satisfies EntityKind;
-        view.itemSprites.set(item.id, sprite);
-        group.add(sprite);
+        const scale = itemVisualScale(item.type);
+        mesh.scale.set(scale, 1, scale);
+        mesh.rotation.y = (stringHash(item.id) % 360) * (Math.PI / 180);
+        mesh.userData.entityId = item.id;
+        mesh.userData.entityKind = "alcove-item" satisfies EntityKind;
+        view.itemMeshes.set(item.id, mesh);
+        group.add(mesh);
       }
       // Spread along the shelf at reach height.
-      sprite.position.set(
+      mesh.position.set(
         (i - (items.length - 1) / 2) * 0.7,
-        SHELF_LOCAL_Y + ALCOVE_ITEM_SIZE / 2,
+        SHELF_LOCAL_Y + ALCOVE_ITEM_Y_OFFSET,
         -NICHE_DEPTH * 0.55,
       );
     });
 
-    for (const [id, sprite] of view.itemSprites) {
+    for (const [id, mesh] of view.itemMeshes) {
       if (seen.has(id)) continue;
-      group.remove(sprite);
-      view.itemSprites.delete(id);
+      group.remove(mesh);
+      view.itemMeshes.delete(id);
     }
   }
 

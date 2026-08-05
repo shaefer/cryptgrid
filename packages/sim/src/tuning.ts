@@ -12,6 +12,7 @@
 import type { RavenousnessTier } from "./character/vitals";
 import { TICKS_PER_SECOND } from "./constants";
 import { ITEM_REGISTRY } from "./items/registry";
+import type { ItemSlot } from "./level/types";
 import type { Character, ItemInstance } from "./state";
 
 // --- Class leveling (docs/STATS.md "Classes & leveling") ---
@@ -125,3 +126,40 @@ export const HP_DRAIN_PER_TICK_BY_STATUS = {
   ravenous: 0.05,
   starving: 0.15,
 } as const;
+
+// --- Pickup range (docs/ROADMAP.md M0.11) ---
+
+/**
+ * Tile-relative offset of each quadrant slot from its tile's center —
+ * mirrors apps/game/src/scene/items.ts's SLOT_OFFSET, but expressed as a
+ * fraction of one tile (±0.25) rather than world units, so sim never needs
+ * to know TILE_SIZE.
+ */
+export const SLOT_OFFSET_TILES: Record<ItemSlot, { dx: number; dz: number }> = {
+  center: { dx: 0, dz: 0 },
+  ne: { dx: 0.25, dz: -0.25 },
+  se: { dx: 0.25, dz: 0.25 },
+  nw: { dx: -0.25, dz: -0.25 },
+  sw: { dx: -0.25, dz: 0.25 },
+};
+
+/**
+ * "Your tile, or the near half of the next one" (design ask), worked out
+ * geometrically: an own-tile item is at most ~0.354 away (quadrant slot
+ * diagonal); an adjacent tile's near-side quadrant slots land at ~0.79;
+ * that same tile's far-side quadrant slots land at ~1.27. 0.85 cleanly
+ * includes the first two and excludes the third.
+ */
+export const PICKUP_RANGE_TILES = 0.85;
+
+/** Straight-line tile distance from a party position to an item's own (slot-offset) position. */
+export function pickupDistance(
+  partyX: number,
+  partyZ: number,
+  itemX: number,
+  itemZ: number,
+  slot: ItemSlot,
+): number {
+  const { dx, dz } = SLOT_OFFSET_TILES[slot];
+  return Math.hypot(itemX + dx - partyX, itemZ + dz - partyZ);
+}

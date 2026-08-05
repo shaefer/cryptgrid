@@ -54,9 +54,10 @@
     { "id": "itm_key_2", "type": "ironkey", "x": 13, "z": 15 }
   ],
   "wallOverrides": [
-    { "x": 10, "z": 6, "variant": "hewn" },
+    { "x": 10, "z": 6, "variant": "thinbrick" },
     { "x": 9, "z": 6, "variant": "fieldstone" },
-    { "x": 13, "z": 10, "variant": "stone" }
+    { "x": 13, "z": 10, "variant": "stone" },
+    { "x": 5, "z": 6, "variant": "stone-fieldstone" }
   ],
   "triggers": [],
   "spawns": []

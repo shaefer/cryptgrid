@@ -19,6 +19,8 @@ import {
   HP_DRAIN_PER_TICK_BY_STATUS,
   HP_REGEN_PER_TICK,
   MANA_REGEN_PER_TICK,
+  PICKUP_RANGE_TILES,
+  pickupDistance,
   REGEN_MULTIPLIER_BY_STATUS,
   sharedCarryCapacity,
   STAMINA_REGEN_PER_TICK,
@@ -179,13 +181,19 @@ function resolvePickup(state: GameState, characterId: string, itemId: string): T
   if (!character) return { state: cooledDown, events: [] };
 
   // Never trust the client's raycast target — re-resolve and validate independently.
+  // "Your tile, or the near half of the next one" (docs/ROADMAP.md M0.11):
+  // a distance check against the item's own slot-offset position, not tile
+  // equality, so items on an adjacent tile's near-side slot are reachable.
   const floorItem = findItemById(state.level, itemId);
-  const onTile = floorItem && floorItem.x === party.x && floorItem.z === party.z;
-  const alcove = onTile
+  const inRange =
+    !!floorItem &&
+    pickupDistance(party.x, party.z, floorItem.x, floorItem.z, floorItem.slot ?? "center") <=
+      PICKUP_RANGE_TILES;
+  const alcove = inRange
     ? undefined
     : alcovesAt(state.level, party.x, party.z).find((a) => a.items.some((i) => i.id === itemId));
 
-  if (!onTile && !alcove) {
+  if (!inRange && !alcove) {
     return {
       state: cooledDown,
       events: [{ type: "PickupRejected", characterId, itemId, reason: "not-here" }],
@@ -200,14 +208,14 @@ function resolvePickup(state: GameState, characterId: string, itemId: string): T
     };
   }
 
-  const taken = onTile ? floorItem : alcove?.items.find((i) => i.id === itemId);
+  const taken = inRange ? floorItem : alcove?.items.find((i) => i.id === itemId);
   if (!taken) return { state: cooledDown, events: [] }; // unreachable; narrows types
 
   const hands = [...character.hands] as Hands;
   hands[emptyHandIndex] = { id: taken.id, type: taken.type };
   const updated = withMemberAt(cooledDown, memberIndex, { ...character, hands });
 
-  const level = onTile
+  const level = inRange
     ? { ...state.level, items: state.level.items.filter((i) => i.id !== itemId) }
     : {
         ...state.level,

@@ -212,15 +212,10 @@ export function removeAlcoveItem(level: LevelJSON, alcoveId: string, itemId: str
 
 // --- Wall texture overrides ---
 
-/** Cycles a wall cell's override: auto -> stone -> fieldstone -> hewn -> auto. */
-export function cycleWallOverride(level: LevelJSON, x: number, z: number): LevelJSON {
-  const order: (WallVariantId | null)[] = [null, "stone", "fieldstone", "hewn"];
-  const current = (level.wallOverrides ?? []).find((o) => o.x === x && o.z === z);
-  const currentIndex = current ? order.indexOf(current.variant) : 0;
-  const next = order[(currentIndex + 1) % order.length] ?? null;
-
+/** Sets (or, with variant=null, clears back to Auto) a wall cell's texture override. */
+export function setWallOverride(level: LevelJSON, x: number, z: number, variant: WallVariantId | null): LevelJSON {
   const withoutThis = (level.wallOverrides ?? []).filter((o) => !(o.x === x && o.z === z));
-  if (next === null) return { ...level, wallOverrides: withoutThis };
-  const override: WallOverride = { x, z, variant: next };
+  if (variant === null) return { ...level, wallOverrides: withoutThis };
+  const override: WallOverride = { x, z, variant };
   return { ...level, wallOverrides: [...withoutThis, override] };
 }

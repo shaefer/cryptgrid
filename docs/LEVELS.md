@@ -62,9 +62,14 @@ The level JSON is the shared contract between `apps/editor`, `apps/game`, `packa
 
   // Optional, sparse (M0.10) — forces a specific wall look at a specific wall
   // cell, overriding the deterministic auto-pick (packages/sim/src/hash.ts).
-  // Most wall cells have no entry here and fall back to the hash.
+  // Most wall cells have no entry here and fall back to the hash. `variant`
+  // is one of 6 (M0.11): the 3 base looks "stone"|"fieldstone"|"thinbrick",
+  // or one of the 3 pairwise transitions "stone-fieldstone"|"stone-thinbrick"
+  // |"fieldstone-thinbrick" — transitions are editor-authored only, never
+  // picked by the automatic hash (which only ever chooses among the 3 base looks).
   "wallOverrides": [
-    { "x": 9, "z": 4, "variant": "hewn" }
+    { "x": 9, "z": 4, "variant": "thinbrick" },
+    { "x": 8, "z": 4, "variant": "stone-thinbrick" }
   ],
 
   // Future-proof stubs (empty arrays fine in v1):
@@ -83,7 +88,7 @@ The sim parses authored JSON into `LevelRuntime`: cells become a typed grid; doo
 
 ## Validation
 
-`packages/sim/src/level/validate.ts` — loadable from editor, game, and tests: rectangular `cells` matching width/height; `start` on floor; doors on `D`/`S` cells and vice versa; features attached to a wall that exists (the referenced face must border a wall or door cell); unique ids; `targets` resolve (against door ids **or**, starting M0.8, alcove feature ids — a switch can reveal a hidden alcove the same way it opens a secret door); items on floor cells; starting M0.7, no two items may share the same `(x, z, slot)` — slot defaults to `"center"` when omitted, so this also catches two centerless items stacked on one tile; starting M0.10, each `wallOverrides` entry must target an actual wall cell (`#`/`X`, never a door or floor cell), name a known variant id, and appear at most once per cell. The editor runs this live (every edit, not just on export) and lists errors inline.
+`packages/sim/src/level/validate.ts` — loadable from editor, game, and tests: rectangular `cells` matching width/height; `start` on floor; doors on `D`/`S` cells and vice versa; features attached to a wall that exists (the referenced face must border a wall or door cell); unique ids; `targets` resolve (against door ids **or**, starting M0.8, alcove feature ids — a switch can reveal a hidden alcove the same way it opens a secret door); items on floor cells; starting M0.7, no two items may share the same `(x, z, slot)` — slot defaults to `"center"` when omitted, so this also catches two centerless items stacked on one tile; starting M0.10, each `wallOverrides` entry must target an actual wall cell (`#`/`X`, never a door or floor cell), name a known variant id (6 as of M0.11 — see the schema above), and appear at most once per cell. The editor runs this live (every edit, not just on export) and lists errors inline.
 
 # EDITOR SPEC (apps/editor)
 
@@ -94,7 +99,7 @@ A React + SVG grid painter (`apps/editor/src`). Function over beauty — but kee
 Four modes, one grid. All four layers render at once for spatial context — terrain always at full strength; wall-override badges, item dots, and feature ticks dim to ~35-50% opacity and stop taking pointer events when their mode isn't active — so switching modes never hides what you already built elsewhere, it only changes what's currently editable.
 
 - **Terrain mode:** paint tools — Floor, Wall, Void, Door, Secret Door, Start (keys 1–6). Click-drag paints; right-click erases to floor. Painting Door/Secret Door auto-creates a matching `doors[]` entry (auto id, sensible defaults); painting anything else over an existing door cell removes it — the grid and `doors[]` never drift apart. Clicking an already-painted door cell with the matching tool selects it for editing instead of no-op-repainting.
-- **Walls mode:** click any wall cell (`#`/`X`) to cycle its `wallOverrides` entry: Auto → Stone → Fieldstone → Hewn → Auto. A gold outline marks a cell with an authored override so it reads differently from the deterministic auto-pick at a glance.
+- **Walls mode:** a tool palette like Terrain/Items/Features (M0.11 replaced an earlier click-to-cycle interaction once the option count grew to 7) — Auto, the 3 base looks, and the 3 pairwise transitions. Pick a tool, click a wall cell (`#`/`X`) to paint it; Auto clears the cell's `wallOverrides` entry back to the deterministic per-cell hash. A gold outline marks a cell with an authored override so it reads differently from the auto-pick at a glance.
 - **Items mode:** each floor cell exposes its 5 sub-tile slots (center + 4 corners, `docs/LEVELS.md` "Coordinates & facing"). Pick a type from the toolbar, click an empty slot to place it (auto id); click an occupied slot to select it for editing; right-click removes it.
 - **Features mode:** floor cells bordering a wall/door render a small tick on each qualifying edge (matching `validate.ts`'s own `feature-face-no-wall` rule, so nothing placeable in the editor can ever fail that check). Pick a feature type, click an empty tick to place it, click an occupied one to edit, right-click removes it. The switch/lever form's targets checklist lists doors *and* alcove ids (M0.8's widened target resolution); the alcove form has a `hidden` checkbox and an add/remove item list; the inscription form is a text box.
 - **Property panel:** contextual — shows whatever's selected (door/item/feature/start), or level-wide `id`/`name` fields when nothing is selected.

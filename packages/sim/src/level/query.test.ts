@@ -80,7 +80,7 @@ describe("resolveWallVariant", () => {
   it("an authored override at that exact cell wins over the auto-pick", () => {
     // Pick whichever variant the hash *wouldn't* have chosen, so the override is provably in effect.
     const auto = autoWallVariant(0, 0);
-    const forced = auto === "hewn" ? "stone" : "hewn";
+    const forced = auto === "thinbrick" ? "stone" : "thinbrick";
     const level = levelWithWallOverrides([{ x: 0, z: 0, variant: forced }]);
     expect(resolveWallVariant(level, 0, 0)).toBe(forced);
   });

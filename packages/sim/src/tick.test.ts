@@ -355,6 +355,39 @@ describe("tick — PICKUP", () => {
     expect(second.events).toEqual([]);
     expect(bram(second.state).hands[1]).toBeNull();
   });
+
+  it("accepts pickup from every slot on the party's own tile", () => {
+    // Party at (1,1) — every quadrant slot on the same tile is at most
+    // ~0.354 tiles away, well inside PICKUP_RANGE_TILES.
+    const slots = ["center", "ne", "se", "nw", "sw"] as const;
+    for (const slot of slots) {
+      const s = withLevelItems(state, [{ id: `itm_${slot}`, type: "torch", x: 1, z: 1, slot }]);
+      const result = tick(s, [{ type: "PICKUP", characterId: "bram", itemId: `itm_${slot}` }]);
+      expect(result.events, `slot ${slot}`).toEqual([
+        { type: "ItemPickedUp", characterId: "bram", itemId: `itm_${slot}`, hand: 0 },
+      ]);
+    }
+  });
+
+  it("accepts pickup from the near-half quadrant slot of an adjacent tile", () => {
+    // Party at (1,1); item at (2,1) slot "nw" sits at (1.75, 0.75) — ~0.79
+    // tiles away, the side of the adjacent tile facing the player.
+    state = withLevelItems(state, [{ id: "itm_near", type: "torch", x: 2, z: 1, slot: "nw" }]);
+    const result = tick(state, [{ type: "PICKUP", characterId: "bram", itemId: "itm_near" }]);
+    expect(result.events).toEqual([
+      { type: "ItemPickedUp", characterId: "bram", itemId: "itm_near", hand: 0 },
+    ]);
+  });
+
+  it("rejects pickup from the far-half quadrant slot of an adjacent tile", () => {
+    // Party at (1,1); item at (2,1) slot "se" sits at (2.25, 1.25) — ~1.27
+    // tiles away, the far side of the adjacent tile, out of reach.
+    state = withLevelItems(state, [{ id: "itm_far", type: "torch", x: 2, z: 1, slot: "se" }]);
+    const result = tick(state, [{ type: "PICKUP", characterId: "bram", itemId: "itm_far" }]);
+    expect(result.events).toEqual([
+      { type: "PickupRejected", characterId: "bram", itemId: "itm_far", reason: "not-here" },
+    ]);
+  });
 });
 
 describe("tick — STOW", () => {
